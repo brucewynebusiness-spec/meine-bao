@@ -1,6 +1,6 @@
 // Minimal offline app-shell cache. Bump CACHE_NAME whenever the cached
 // files change meaningfully — old caches are dropped on activate.
-const CACHE_NAME = "meine-bao-shell-v1";
+const CACHE_NAME = "meine-bao-shell-v2";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -26,20 +26,23 @@ self.addEventListener("activate", event => {
   self.clients.claim();
 });
 
-// stale-while-revalidate for same-origin GETs: serve from cache instantly
-// if we have it, and refresh the cache in the background for next time.
+// network-first for same-origin GETs: always try to fetch the latest version
+// first, so an update shows up the moment she opens the app while online.
+// Only falls back to the cached copy if the network request fails (offline,
+// or a flaky connection) — that's what makes the app still open with no signal.
 self.addEventListener("fetch", event => {
   const req = event.request;
   if(req.method !== "GET" || new URL(req.url).origin !== self.location.origin) return;
 
   event.respondWith(
-    caches.open(CACHE_NAME).then(async cache => {
-      const cached = await cache.match(req);
-      const network = fetch(req).then(res => {
-        if(res && res.ok) cache.put(req, res.clone());
-        return res;
-      }).catch(() => cached);
-      return cached || network;
-    })
+    fetch(req).then(res => {
+      if(res && res.ok){
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
+      }
+      return res;
+    }).catch(() =>
+      caches.open(CACHE_NAME).then(cache => cache.match(req))
+    )
   );
 });
