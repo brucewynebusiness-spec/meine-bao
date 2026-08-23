@@ -1,0 +1,17 @@
+{
+  "name": "Meine Bao's World",
+  "short_name": "Meine Bao",
+  "description": "A private anniversary world: a walkable underwater gallery, scratch notes, a workout calendar, and a shared sketchpad.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#e3f6fa",
+  "theme_color": "#17b6d4",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

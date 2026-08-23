@@ -2,8 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Meine Bao's World</title>
+<meta name="theme-color" content="#17b6d4">
+<meta name="description" content="A private anniversary world: a walkable underwater gallery, scratch notes, a workout calendar, and a shared sketchpad.">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Meine Bao">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -50,9 +58,8 @@ nav.tabs button{
 nav.tabs button.active{ background:var(--rose); color:#fff; border-color:var(--rose); }
 nav.tabs button:hover{ transform:translateY(-1px); }
 
-.page{ display:none; padding:18px 20px; animation:fade .25s ease; }
+.page{ display:none; padding:18px 20px; }
 .page.active{ display:block; }
-@keyframes fade{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
 
 /* ---------- Home ---------- */
 .counter-card{
@@ -272,9 +279,58 @@ nav.tabs button:hover{ transform:translateY(-1px); }
   font-size:0.75rem; padding:8px 12px; border-radius:10px; margin-top:10px;
   background:var(--bg2); color:var(--ink-soft); border:1px solid var(--line);
 }
+
+/* ---------- App splash (first load only) ---------- */
+#appSplash{
+  position:fixed; inset:0; z-index:500;
+  background:radial-gradient(circle at 50% 40%, var(--bg2), var(--bg));
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:14px; transition:opacity .6s ease; opacity:1;
+}
+#appSplash.hidden{ opacity:0; pointer-events:none; }
+#appSplash .splash-heart{ font-size:3rem; animation:splashPulse 1.6s ease-in-out infinite; }
+#appSplash .splash-label{ font-family:'Caveat',cursive; font-size:1.3rem; color:var(--rose-deep); }
+@keyframes splashPulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.12); } }
+
+/* ---------- tab crossfade ---------- */
+.page{ transition:opacity .22s ease, transform .22s ease; }
+.page.leaving{ opacity:0; transform:translateY(6px); }
+
+/* ---------- gallery mute control ---------- */
+.mute-btn{
+  position:absolute; top:12px; right:12px; z-index:5;
+  width:36px; height:36px; border-radius:50%; border:1px solid rgba(255,255,255,0.5);
+  background:radial-gradient(circle at 35% 28%, rgba(255,255,255,0.6), rgba(120,205,235,0.25) 60%, rgba(11,111,176,0.3) 100%);
+  color:#0b3a55; font-size:1rem; cursor:pointer;
+  box-shadow:0 4px 10px rgba(11,58,85,0.3), inset 0 1px 3px rgba(255,255,255,0.6);
+}
+
+/* ---------- memory timeline ---------- */
+.timeline{ position:relative; padding-left:22px; }
+.timeline::before{
+  content:""; position:absolute; left:6px; top:4px; bottom:4px; width:2px;
+  background:linear-gradient(var(--rose), var(--gold));
+  opacity:0.5;
+}
+.timeline-entry{ position:relative; margin-bottom:20px; }
+.timeline-entry::before{
+  content:""; position:absolute; left:-22px; top:4px; width:12px; height:12px; border-radius:50%;
+  background:var(--rose); border:2px solid var(--cream); box-shadow:0 0 0 2px var(--rose);
+}
+.timeline-date{ font-family:'Caveat',cursive; font-size:1.15rem; color:var(--rose-deep); margin-bottom:2px; }
+.timeline-card{
+  background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 14px;
+  box-shadow:0 6px 14px var(--shadow);
+}
+.timeline-card img{ width:100%; border-radius:10px; margin-top:8px; }
+.timeline-empty{ color:var(--ink-soft); font-size:0.85rem; text-align:center; padding:20px 0; }
 </style>
 </head>
 <body>
+<div id="appSplash">
+  <div class="splash-heart">🤍</div>
+  <div class="splash-label">opening your world…</div>
+</div>
 <div class="wrap">
   <header class="top">
     <h1>For Meine Bao ♡</h1>
@@ -287,6 +343,7 @@ nav.tabs button:hover{ transform:translateY(-1px); }
     <button data-tab="notes">Notes</button>
     <button data-tab="workout">Workout</button>
     <button data-tab="sketch">Sketch</button>
+    <button data-tab="timeline">Timeline</button>
   </nav>
 
   <!-- HOME -->
@@ -321,6 +378,7 @@ nav.tabs button:hover{ transform:translateY(-1px); }
         <div class="gl-crosshair"></div>
         <div class="gl-hint">drag to look around · WASD or the joystick to walk</div>
         <button class="peek-btn" id="peekBtn" hidden>view this painting ✦</button>
+        <button class="mute-btn" id="muteBtn" aria-label="mute sound" title="mute sound">🔊</button>
         <div class="joystick" id="joystick"><div class="joystick-knob" id="joystickKnob"></div></div>
       </div>
     </div>
@@ -388,6 +446,15 @@ nav.tabs button:hover{ transform:translateY(-1px); }
     <p id="sketchStatus" class="status-msg"></p>
   </section>
 
+  <!-- TIMELINE -->
+  <section class="page" id="page-timeline">
+    <h2 class="script" style="margin:0 0 10px;">our story so far</h2>
+    <p style="color:var(--ink-soft);font-size:0.85rem;margin-top:-6px;">
+      A little scroll through the memories, in order.
+    </p>
+    <div class="timeline" id="timelineList"></div>
+  </section>
+
   <div class="admin-link"><a href="#" id="adminToggle">♡ admin</a></div>
   <section class="page" id="page-admin" style="padding:0 20px;">
     <div class="admin-panel">
@@ -425,6 +492,16 @@ nav.tabs button:hover{ transform:translateY(-1px); }
       <textarea id="rewardCapInput" rows="2" placeholder="what you want her to see when she unlocks this"></textarea>
       <button class="save-btn" id="addRewardBtn">queue reward</button>
       <div class="admin-list" id="rewardAdminList"></div>
+
+      <h3 style="margin-top:22px;">Timeline memory</h3>
+      <label>Date</label>
+      <input type="text" id="tlDateInput" placeholder="YYYY-MM-DD">
+      <label>Text</label>
+      <textarea id="tlTextInput" rows="2" placeholder="what happened / how you felt"></textarea>
+      <label>Photo (optional)</label>
+      <input type="file" id="tlImgInput" accept="image/*">
+      <button class="save-btn" id="addTimelineBtn">add memory</button>
+      <div class="admin-list" id="timelineAdminList"></div>
 
       <p class="status-msg" id="adminStatus"></p>
     </div>
@@ -518,7 +595,8 @@ const STATE = {
   rewards: [
     { type: "text", content: "", caption: "You did it! Here's a start: I love you more than words fit on a screen. More rewards coming as you add them 🤍" }
   ],
-  workoutCalendar: {} // "YYYY-MM-DD" -> { videoUrl, completed, rewardClaimed }
+  workoutCalendar: {}, // "YYYY-MM-DD" -> { videoUrl, completed, rewardClaimed }
+  timeline: [] // { date: "YYYY-MM-DD", text, img? } — kept sorted by date when rendered
 };
 
 /* ================= tabs ================= */
@@ -528,11 +606,31 @@ document.querySelectorAll(".qtile").forEach(t => t.addEventListener("click", () 
 document.getElementById("adminToggle").addEventListener("click", e => { e.preventDefault(); goTab("admin"); });
 
 function goTab(name){
-  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
   const target = document.getElementById("page-"+name);
-  if(target) target.classList.add("active");
+  if(!target) return;
+  const current = document.querySelector(".page.active");
   tabs.forEach(b => b.classList.toggle("active", b.dataset.tab === name));
-  if(name === "gallery"){ requestAnimationFrame(resizeGL); playEntranceFadeOnce(); }
+  if(current === target) return;
+
+  function showTarget(){
+    document.querySelectorAll(".page").forEach(p => p.classList.remove("active", "leaving"));
+    target.style.transition = "none";
+    target.classList.add("active");
+    target.style.opacity = "0";
+    target.style.transform = "translateY(6px)";
+    requestAnimationFrame(() => {
+      target.style.transition = "opacity .22s ease, transform .22s ease";
+      requestAnimationFrame(() => { target.style.opacity = "1"; target.style.transform = "none"; });
+    });
+    if(name === "gallery"){ requestAnimationFrame(resizeGL); playEntranceFadeOnce(); }
+  }
+
+  if(current){
+    current.classList.add("leaving");
+    setTimeout(showTarget, 160);
+  } else {
+    showTarget();
+  }
 }
 
 /* ================= day counter ================= */
@@ -582,16 +680,24 @@ let hasEnteredGallery = false;
    click/tap/key inside the gallery. ---------------- */
 const GalleryAudio = {
   ctx: null, master: null, ambientNodes: null, lastStep: 0,
+  muted: localStorage.getItem("obw_muted") === "1",
   init(){
     if(this.ctx) return;
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if(!Ctx) return;
     this.ctx = new Ctx();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.5;
+    this.master.gain.value = this.muted ? 0 : 0.5;
     this.master.connect(this.ctx.destination);
     this.startAmbient();
-    this.chime();
+    if(!this.muted) this.chime();
+    updateMuteButton();
+  },
+  setMuted(v){
+    this.muted = v;
+    localStorage.setItem("obw_muted", v ? "1" : "0");
+    if(this.master) this.master.gain.value = v ? 0 : 0.5;
+    updateMuteButton();
   },
   startAmbient(){
     const ctx = this.ctx;
@@ -997,7 +1103,7 @@ function setupGalleryControls(){
   let looking=false, lastX=0, lastY=0;
   viewport.addEventListener("pointerdown", e => {
     GalleryAudio.init();
-    if(e.target.closest("#joystick") || e.target.closest(".peek-btn")) return;
+    if(e.target.closest("#joystick") || e.target.closest(".peek-btn") || e.target.closest("#muteBtn")) return;
     viewport.focus();
     looking = true; lastX = e.clientX; lastY = e.clientY;
     try{ viewport.setPointerCapture(e.pointerId); }catch(err){}
@@ -1142,6 +1248,22 @@ function updatePeek(){
 }
 document.getElementById("peekBtn").addEventListener("click", () => { if(nearestArt) openLightbox(nearestArt); });
 
+/* ---------------- mute control + haptics ---------------- */
+function updateMuteButton(){
+  const btn = document.getElementById("muteBtn");
+  if(!btn) return;
+  btn.textContent = GalleryAudio.muted ? "🔇" : "🔊";
+}
+document.getElementById("muteBtn").addEventListener("click", () => {
+  GalleryAudio.init(); // harmless no-op if already running; ensures a context exists to mute
+  GalleryAudio.setMuted(!GalleryAudio.muted);
+});
+updateMuteButton();
+
+function haptic(pattern){
+  if(navigator.vibrate) try{ navigator.vibrate(pattern); }catch(e){}
+}
+
 const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
 let _lastT = null;
@@ -1188,6 +1310,26 @@ document.getElementById("lbClose").addEventListener("click", () => document.getE
 document.getElementById("lightbox").addEventListener("click", e => { if(e.target.id==="lightbox") e.currentTarget.classList.remove("open"); });
 
 /* ================= notes: scratch cards ================= */
+/* ================= memory timeline ================= */
+function buildTimeline(){
+  const list = document.getElementById("timelineList");
+  const entries = [...STATE.timeline].sort((a,b) => (a.date||"").localeCompare(b.date||""));
+  if(!entries.length){
+    list.innerHTML = `<p class="timeline-empty">no memories added yet — the admin page can add the first one.</p>`;
+    return;
+  }
+  list.innerHTML = entries.map(e => {
+    const dateLabel = e.date
+      ? new Date(e.date+"T00:00:00").toLocaleDateString(undefined,{year:"numeric",month:"long",day:"numeric"})
+      : "";
+    const img = e.img ? `<img src="${e.img}" alt="">` : "";
+    return `<div class="timeline-entry">
+      <div class="timeline-date">${dateLabel}</div>
+      <div class="timeline-card">${(e.text||"").replace(/</g,"&lt;")}${img}</div>
+    </div>`;
+  }).join("");
+}
+
 function buildNotes(){
   const grid = document.getElementById("notesGrid");
   grid.innerHTML = "";
@@ -1239,7 +1381,7 @@ function setupScratch(card, canvas){
     ctx.arc(p.x, p.y, 18, 0, Math.PI*2);
     ctx.fill();
     cleared++;
-    if(cleared > 26 && !card.classList.contains("revealed")) card.classList.add("revealed");
+    if(cleared > 26 && !card.classList.contains("revealed")){ card.classList.add("revealed"); haptic(30); }
   }
   canvas.addEventListener("pointerdown", e => { drawing=true; scratch(e); });
   canvas.addEventListener("pointermove", e => { if(drawing) scratch(e); });
@@ -1378,6 +1520,7 @@ document.getElementById("calMarkDone").addEventListener("click", async () => {
   if(entry.completed && !entry.rewardClaimed){
     entry.rewardClaimed = true;
     streak++;
+    haptic([20,40,20,40,60]);
     await saveProgress();
     renderStreak();
     revealReward();
@@ -1538,6 +1681,10 @@ function renderAdminLists(){
     `<div class="row"><span>[${r.type}] ${(r.caption||"").slice(0,32)}</span><button class="del" data-kind="rewards" data-i="${i}">remove</button></div>`
   ).join("");
 
+  document.getElementById("timelineAdminList").innerHTML = STATE.timeline.map((e,i) =>
+    `<div class="row"><span>${e.date||"?"} — ${(e.text||"").slice(0,28)}</span><button class="del" data-kind="timeline" data-i="${i}">remove</button></div>`
+  ).join("");
+
   document.querySelectorAll(".admin-list .del").forEach(btn => {
     btn.addEventListener("click", async () => {
       STATE[btn.dataset.kind].splice(Number(btn.dataset.i), 1);
@@ -1608,6 +1755,20 @@ document.getElementById("addRewardBtn").addEventListener("click", async () => {
   if(!ok){ STATE.rewards.pop(); renderAdminLists(); }
 });
 
+document.getElementById("addTimelineBtn").addEventListener("click", async () => {
+  const date = document.getElementById("tlDateInput").value.trim();
+  const text = document.getElementById("tlTextInput").value.trim();
+  const fileInput = document.getElementById("tlImgInput");
+  if(!date || !text){ document.getElementById("adminStatus").textContent = "add a date and some text first."; return; }
+  const img = fileInput.files[0] ? await imageFileToCompressedDataURL(fileInput.files[0]) : null;
+  STATE.timeline.push({ date, text, img });
+  document.getElementById("tlTextInput").value = "";
+  renderAdminLists();
+  buildTimeline();
+  const ok = await publishState("memory added.");
+  if(!ok){ STATE.timeline.pop(); renderAdminLists(); buildTimeline(); }
+});
+
 /* ================= boot ================= */
 (async function init(){
   document.getElementById("cloudBanner").textContent = FIREBASE_ENABLED
@@ -1628,8 +1789,17 @@ document.getElementById("addRewardBtn").addEventListener("click", async () => {
   renderStreak();
   if(!STATE.workoutCalendar) STATE.workoutCalendar = {};
   buildCalendar();
+  if(!STATE.timeline) STATE.timeline = [];
+  buildTimeline();
   fitSketchCanvas();
   renderAdminLists();
+
+  const splash = document.getElementById("appSplash");
+  setTimeout(() => splash.classList.add("hidden"), 500);
+
+  if("serviceWorker" in navigator){
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
 
   // debug hook — harmless, lets the console (or a test) inspect/drive live state
   window.STATE = STATE;
