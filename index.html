@@ -13,14 +13,12 @@
   --bg:#fdf6f1; --bg2:#f7ebe2; --ink:#4a3c35; --ink-soft:#8a7468;
   --rose:#e8879b; --rose-deep:#d1637a; --gold:#d9a441; --cream:#fffaf5;
   --card:#ffffff; --line:rgba(74,60,53,0.12); --shadow:rgba(74,60,53,0.15);
-  --corridor-wall:#efe0d3; --corridor-floor:#c9a789; --corridor-ceil:#e9d6c4;
 }
 @media (prefers-color-scheme: dark){
   :root{
     --bg:#241c1f; --bg2:#2c2226; --ink:#f3e7df; --ink-soft:#c9b6ab;
     --rose:#f0a3b3; --rose-deep:#e8879b; --gold:#e6bb6b; --cream:#2f2428;
     --card:#332729; --line:rgba(243,231,223,0.12); --shadow:rgba(0,0,0,0.4);
-    --corridor-wall:#3a2c2f; --corridor-floor:#241a1a; --corridor-ceil:#2c2022;
   }
 }
 
@@ -79,93 +77,51 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 .qtile .emo{ font-size:1.8rem; display:block; margin-bottom:6px; }
 .qtile span.lbl{ font-weight:700; font-size:0.85rem; }
 
-/* ---------- Gallery: museum rotunda (walk around, one painting at a time) ---------- */
+/* ---------- Gallery: real 3D walkable room (Three.js) ---------- */
 .gallery-shell{
   border-radius:20px; overflow:hidden; border:1px solid var(--line);
   box-shadow:0 10px 30px var(--shadow); background:#000; position:relative;
 }
-.rotunda-viewport{
+.gl-viewport{
   width:100%; aspect-ratio:16/10; position:relative; overflow:hidden;
-  perspective:750px; perspective-origin:50% 42%;
-  background:
-    radial-gradient(ellipse at 50% 0%, #fff6e6 0%, var(--corridor-ceil) 60%, var(--corridor-ceil) 100%),
-    linear-gradient(var(--corridor-ceil),var(--corridor-ceil) 46%,var(--corridor-floor) 46%,var(--corridor-floor));
-  touch-action:none; cursor:grab;
+  touch-action:none; cursor:grab; background:#1a1410;
 }
-.rotunda-viewport:active{ cursor:grabbing; }
-.rotunda-viewport:focus{ outline:2px solid var(--gold); outline-offset:-2px; }
-#ring{
-  position:absolute; inset:0; transform-style:preserve-3d;
-  transition:transform .45s cubic-bezier(.2,.8,.2,1);
+.gl-viewport:active{ cursor:grabbing; }
+.gl-viewport canvas{ display:block; width:100%; height:100%; }
+.gl-loading{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  color:#f7ecd8; font-family:'Caveat',cursive; font-size:1.3rem; background:#1a1410;
+  transition:opacity .4s; pointer-events:none;
 }
-#ring.dragging{ transition:none; }
-
-.panel{
-  position:absolute; left:50%; top:16%; width:220px; height:66%;
-  margin-left:-110px; transform-style:preserve-3d; pointer-events:none;
+.gl-loading.hidden{ opacity:0; }
+.gl-crosshair{
+  position:absolute; top:50%; left:50%; width:7px; height:7px; margin:-3.5px;
+  border:2px solid rgba(255,255,255,0.85); border-radius:50%; pointer-events:none;
+  mix-blend-mode:difference;
 }
-.panel-wall{
-  position:absolute; inset:0; background:var(--corridor-wall);
-  border-top:3px solid rgba(0,0,0,0.12); border-bottom:3px solid rgba(0,0,0,0.18);
-  box-shadow:inset 0 0 40px rgba(0,0,0,0.15);
-}
-.panel-spotlight{
-  position:absolute; top:-22%; left:50%; width:200%; height:70%;
-  transform:translateX(-50%);
-  background:radial-gradient(ellipse at 50% 0%, rgba(255,244,214,0.55), transparent 68%);
-}
-.panel-plaque{
-  position:absolute; bottom:9%; left:50%; transform:translateX(-50%);
-  background:rgba(20,14,12,0.6); color:#f7ecd8; font-family:'Caveat',cursive;
-  font-size:1rem; padding:4px 14px; border-radius:6px; white-space:nowrap;
-  max-width:92%; overflow:hidden; text-overflow:ellipsis;
-}
-.decor-plant{
-  position:absolute; bottom:4%; left:50%; transform:translateX(-50%);
-  font-size:2.4rem; filter:drop-shadow(0 6px 8px rgba(0,0,0,0.4));
-}
-.decor-pillar{
-  position:absolute; bottom:0; left:50%; width:24%; height:72%; transform:translateX(-50%);
-  background:linear-gradient(180deg, rgba(255,255,255,0.14), rgba(0,0,0,0.18));
-  border-left:2px solid rgba(255,255,255,0.18); border-right:2px solid rgba(0,0,0,0.22);
-  border-radius:4px;
-}
-
-.frame{
-  position:absolute; width:62%; aspect-ratio:1/1; left:50%; top:20%;
-  transform:translateX(-50%); z-index:3;
-  background:#2b2320; padding:5%; border-radius:4px;
-  box-shadow:0 8px 22px rgba(0,0,0,0.55);
-  filter:brightness(0.6); transition:filter .3s;
-}
-.panel.front .frame{ filter:brightness(1.05); box-shadow:0 0 0 3px var(--gold),0 10px 30px rgba(0,0,0,0.6); }
-.frame img{ width:100%; height:100%; object-fit:cover; display:block; border-radius:2px; background:#fff; }
-.frame .empty-art{
-  width:100%; height:100%; display:flex; align-items:center; justify-content:center;
-  background:#f2e7db; color:#a8917f; font-size:0.7rem; text-align:center; padding:10%; border-radius:2px;
-  font-family:'Quicksand',sans-serif;
-}
-
-.rotunda-hint{
+.gl-hint{
   position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
   background:rgba(0,0,0,0.55); color:#fff; padding:6px 14px; border-radius:999px;
-  font-size:0.75rem; pointer-events:none; opacity:.9;
+  font-size:0.75rem; pointer-events:none; opacity:.9; text-align:center; white-space:nowrap;
 }
-.rotunda-controls{ position:absolute; bottom:14px; right:14px; display:flex; gap:8px; }
 .peek-btn{
-  position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+  position:absolute; bottom:38px; left:50%; transform:translateX(-50%);
   background:var(--gold); color:#2b2320; border:none; padding:10px 20px;
   border-radius:999px; font-family:'Quicksand',sans-serif; font-weight:700;
   font-size:0.85rem; cursor:pointer; box-shadow:0 6px 16px rgba(0,0,0,0.4);
-  animation:pop .25s ease;
+  animation:pop .25s ease; z-index:5;
 }
 .peek-btn[hidden]{ display:none; }
 @keyframes pop{ from{ transform:translateX(-50%) scale(0.85); opacity:0; } to{ transform:translateX(-50%) scale(1); opacity:1; } }
-.ctrl-btn{
-  width:46px; height:46px; border-radius:50%; border:none; background:rgba(255,255,255,0.85);
-  font-size:1.2rem; cursor:pointer; box-shadow:0 4px 10px rgba(0,0,0,0.3); user-select:none;
+.joystick{
+  position:absolute; left:16px; bottom:16px; width:96px; height:96px; border-radius:50%;
+  background:rgba(255,255,255,0.14); border:2px solid rgba(255,255,255,0.35); touch-action:none;
 }
-.ctrl-btn:active{ background:var(--rose); color:#fff; }
+.joystick-knob{
+  position:absolute; width:42px; height:42px; border-radius:50%; background:rgba(255,255,255,0.8);
+  left:27px; top:27px; pointer-events:none; transition:transform .08s;
+}
+.gallery-empty-note{ text-align:center; color:var(--ink-soft); margin-top:12px; font-size:0.85rem; }
 
 .lightbox{
   position:fixed; inset:0; background:rgba(20,14,12,0.88); z-index:200;
@@ -182,7 +138,6 @@ nav.tabs button:hover{ transform:translateY(-1px); }
   margin-top:12px; border:none; background:var(--rose); color:#fff; padding:8px 20px;
   border-radius:999px; cursor:pointer; font-weight:700;
 }
-.gallery-empty-note{ text-align:center; color:var(--ink-soft); margin-top:12px; font-size:0.85rem; }
 
 /* ---------- Notes: scratch cards ---------- */
 .notes-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:16px; }
@@ -303,16 +258,15 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 
   <!-- GALLERY -->
   <section class="page" id="page-gallery">
-    <h2 class="script" style="margin:0 0 10px;">walk around it</h2>
+    <h2 class="script" style="margin:0 0 10px;">step inside</h2>
     <div class="gallery-shell">
-      <div class="rotunda-viewport" id="rotundaView" tabindex="0">
-        <div id="ring"></div>
-        <div class="rotunda-hint">swipe left/right to turn</div>
+      <div class="gl-viewport" id="glViewport" tabindex="0">
+        <canvas id="glCanvas"></canvas>
+        <div class="gl-loading" id="glLoading">loading the room…</div>
+        <div class="gl-crosshair"></div>
+        <div class="gl-hint">drag to look around · WASD or the joystick to walk</div>
         <button class="peek-btn" id="peekBtn" hidden>view this painting ✦</button>
-        <div class="rotunda-controls">
-          <button class="ctrl-btn" id="btnLeft" aria-label="turn left">‹</button>
-          <button class="ctrl-btn" id="btnRight" aria-label="turn right">›</button>
-        </div>
+        <div class="joystick" id="joystick"><div class="joystick-knob" id="joystickKnob"></div></div>
       </div>
     </div>
     <p class="gallery-empty-note" id="galleryEmptyNote"></p>
@@ -416,7 +370,13 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <script src="firebase-config.js"></script>
 
-<script>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from "three";
+
 /* ================= cloud storage adapter =================
    FIREBASE_CONFIG comes from firebase-config.js. Leave it as the
    placeholder (apiKey: "") and everything below still works — it just
@@ -505,6 +465,7 @@ function goTab(name){
   const target = document.getElementById("page-"+name);
   if(target) target.classList.add("active");
   tabs.forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  if(name === "gallery") requestAnimationFrame(resizeGL);
 }
 
 /* ================= day counter ================= */
@@ -518,144 +479,320 @@ function renderCounter(){
 }
 setInterval(renderCounter, 60000);
 
-/* ================= gallery: museum rotunda ================= */
-const RADIUS = 480;      // distance of the wall ring from the viewer
-const DECOR_ICONS = ["🪴","🕯️","🏺","🖼️"];
-let frames = [];         // {el, art} — one entry per ARTWORK (decor panels aren't tracked here)
-let ringN = 1;           // number of artworks (>=1, placeholders count if gallery is empty)
-let bigStep = 360;        // degrees between consecutive artworks
-let currentIndex = 0;
-let heading = 0;          // current ring rotation in degrees
+/* =========================================================================
+   GALLERY — a real walkable 3D room (Three.js), cel-shaded "anime" style,
+   inspired by cel-shaded Japanese explorable-town projects: toon-shaded
+   materials with a hand-authored light/shadow gradient, warm key light +
+   violet-tinted fill, procedural canvas textures (no external image
+   assets besides her own uploaded art), first-person WASD + drag-to-look
+   movement, and a raycast crosshair to interact with whichever painting
+   you're actually looking at.
+   ========================================================================= */
+const ROOM_RADIUS = 9;
+const ROOM_HEIGHT = 5;
+const EYE_HEIGHT = 1.65;
+const WALL_MARGIN = 0.7;
+const MOVE_SPEED = 3.4;
+const LOOK_DIST = 6.5;
+const DECOR_LEAF_COLORS = [0x6c9a6c, 0x7ba36b, 0x5f8f6f, 0x86a86a];
 
-function layoutPanel(el, slot, slotStep){
-  el.style.transform = `rotateY(${slot*slotStep}deg) translateZ(${RADIUS}px)`;
+let renderer, scene, camera, raycaster, toonGradient;
+let frameEntries = [];           // { group, art, hitMesh }
+let camPos = new THREE.Vector3(0, EYE_HEIGHT, ROOM_RADIUS * 0.35);
+let yaw = Math.PI, pitch = 0;    // start facing the first painting
+let moveState = { fwd: 0, strafe: 0 };
+let nearestArt = null;
+let glReady = false;
+
+function makeToonGradient(){
+  const canvas = document.createElement("canvas");
+  canvas.width = 4; canvas.height = 1;
+  const ctx = canvas.getContext("2d");
+  ["#2f2530", "#7a5a6b", "#c99a7c", "#ffe9c9"].forEach((c,i) => { ctx.fillStyle = c; ctx.fillRect(i,0,1,1); });
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
+  return tex;
 }
 
-function buildRotunda(){
-  const ring = document.getElementById("ring");
-  ring.innerHTML = "";
-  frames = [];
+function roundRectPath(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+function makePlaqueTexture(text){
+  const canvas = document.createElement("canvas");
+  canvas.width = 512; canvas.height = 100;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "rgba(20,14,12,0.68)";
+  roundRectPath(ctx,4,4,504,92,18); ctx.fill();
+  ctx.fillStyle = "#f7ecd8";
+  ctx.font = "42px Georgia, serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText((text||"").slice(0,42), 256, 52);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeFloorTexture(){
+  const canvas = document.createElement("canvas");
+  canvas.width = 512; canvas.height = 512;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#c9a789";
+  ctx.fillRect(0,0,512,512);
+  const grad = ctx.createRadialGradient(256,256,10,256,256,300);
+  grad.addColorStop(0,"rgba(255,244,220,0.4)");
+  grad.addColorStop(1,"rgba(60,40,30,0.08)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,512,512);
+  ctx.strokeStyle = "rgba(0,0,0,0.05)";
+  ctx.lineWidth = 2;
+  for(let r=36;r<260;r+=36){ ctx.beginPath(); ctx.arc(256,256,r,0,Math.PI*2); ctx.stroke(); }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function initGL(){
+  const canvas = document.getElementById("glCanvas");
+  try{
+    renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+  }catch(e){
+    document.getElementById("glLoading").textContent = "this browser can't run the 3D gallery — try a newer browser.";
+    return;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xf3e3c9);
+  scene.fog = new THREE.Fog(0xf3e3c9, 9, 20);
+
+  camera = new THREE.PerspectiveCamera(62, 1, 0.1, 100);
+  raycaster = new THREE.Raycaster();
+  toonGradient = makeToonGradient();
+
+  scene.add(new THREE.HemisphereLight(0xfff2d9, 0x4a3a66, 1.15));
+  const key = new THREE.DirectionalLight(0xffdca8, 1.0);
+  key.position.set(6, 10, 4);
+  scene.add(key);
+
+  const wallMat = new THREE.MeshToonMaterial({ color: 0xefe0d3, gradientMap: toonGradient, side: THREE.BackSide });
+  const wall = new THREE.Mesh(new THREE.CylinderGeometry(ROOM_RADIUS, ROOM_RADIUS, ROOM_HEIGHT, 48, 1, true), wallMat);
+  wall.position.y = ROOM_HEIGHT/2;
+  scene.add(wall);
+
+  const floorMat = new THREE.MeshToonMaterial({ map: makeFloorTexture(), gradientMap: toonGradient });
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(ROOM_RADIUS, 48), floorMat);
+  floor.rotation.x = -Math.PI/2;
+  scene.add(floor);
+
+  const ceilMat = new THREE.MeshToonMaterial({ color: 0xfff6e6, gradientMap: toonGradient });
+  const ceil = new THREE.Mesh(new THREE.CircleGeometry(ROOM_RADIUS, 48), ceilMat);
+  ceil.rotation.x = Math.PI/2;
+  ceil.position.y = ROOM_HEIGHT;
+  scene.add(ceil);
+
+  camera.position.copy(camPos);
+
+  resizeGL();
+  window.addEventListener("resize", resizeGL);
+  setupGalleryControls();
+
+  glReady = true;
+  document.getElementById("glLoading").classList.add("hidden");
+  requestAnimationFrame(tick);
+}
+
+function resizeGL(){
+  if(!renderer) return;
+  const el = document.getElementById("glViewport");
+  const w = el.clientWidth, h = el.clientHeight;
+  if(!w || !h) return;
+  renderer.setSize(w, h, false);
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+}
+
+function buildGalleryRoom(){
+  if(!scene) return;
+  frameEntries.forEach(f => scene.remove(f.group));
+  frameEntries.forEach(f => scene.remove(f.decorGroup));
+  frameEntries = [];
 
   const hasArt = STATE.gallery.length > 0;
-  const arts = hasArt ? STATE.gallery : [null, null, null];
-  ringN = arts.length;
-  bigStep = 360 / ringN;
-  const slotStep = bigStep / 2; // half-step: artwork, decor, artwork, decor...
+  const arts = hasArt ? STATE.gallery : [null, null, null, null];
+  const N = arts.length;
 
   arts.forEach((art, i) => {
-    const panel = document.createElement("div");
-    panel.className = "panel";
-    layoutPanel(panel, i*2, slotStep);
-    panel.innerHTML = `<div class="panel-wall"></div><div class="panel-spotlight"></div>`;
+    const angle = (i / N) * Math.PI * 2;
+    const x = Math.sin(angle) * (ROOM_RADIUS - 0.06);
+    const z = Math.cos(angle) * (ROOM_RADIUS - 0.06);
 
-    const frame = document.createElement("div");
-    frame.className = "frame";
-    frame.innerHTML = art
-      ? `<img src="${art.img}" alt="${(art.caption||"").replace(/"/g,"&quot;")}">`
-      : `<div class="empty-art">waiting for<br>your next<br>masterpiece</div>`;
-    panel.appendChild(frame);
+    const group = new THREE.Group();
+    group.position.set(x, 2.05, z);
+    group.lookAt(0, 2.05, 0);
+
+    const borderMat = new THREE.MeshToonMaterial({ color: 0x2b2320, gradientMap: toonGradient });
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.0, 0.08), borderMat));
+
+    let hitMesh;
+    if(art){
+      const tex = new THREE.TextureLoader().load(art.img);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      hitMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.72,1.72), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+    } else {
+      hitMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.72,1.72), new THREE.MeshToonMaterial({ color: 0xf2e7db, gradientMap: toonGradient, side: THREE.DoubleSide }));
+    }
+    hitMesh.position.z = 0.05;
+    group.add(hitMesh);
+
+    const spot = new THREE.PointLight(0xffedc2, art ? 0.9 : 0.35, 6, 2);
+    spot.position.set(0, 1.5, 0.7);
+    group.add(spot);
 
     if(art && art.caption){
-      const plaque = document.createElement("div");
-      plaque.className = "panel-plaque";
-      plaque.textContent = art.caption;
-      panel.appendChild(plaque);
+      const plaqueMat = new THREE.MeshBasicMaterial({ map: makePlaqueTexture(art.caption), transparent:true, side: THREE.DoubleSide });
+      const plaque = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 0.26), plaqueMat);
+      plaque.position.set(0, -1.24, 0.06);
+      group.add(plaque);
     }
-    ring.appendChild(panel);
-    frames.push({ el: panel, art });
 
-    const decor = document.createElement("div");
-    decor.className = "panel decor";
-    layoutPanel(decor, i*2+1, slotStep);
-    decor.innerHTML = `<div class="panel-wall"></div><div class="decor-pillar"></div><div class="decor-plant">${DECOR_ICONS[i % DECOR_ICONS.length]}</div>`;
-    ring.appendChild(decor);
+    scene.add(group);
+
+    const decorAngle = angle + (Math.PI / N);
+    const dx = Math.sin(decorAngle) * (ROOM_RADIUS - 0.55);
+    const dz = Math.cos(decorAngle) * (ROOM_RADIUS - 0.55);
+    const decorGroup = new THREE.Group();
+    decorGroup.position.set(dx, 0, dz);
+    const pot = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.25,0.3,0.4,10),
+      new THREE.MeshToonMaterial({ color: 0x8a5a3c, gradientMap: toonGradient })
+    );
+    pot.position.y = 0.2;
+    decorGroup.add(pot);
+    const leaves = new THREE.Mesh(
+      new THREE.ConeGeometry(0.42, 0.95, 8),
+      new THREE.MeshToonMaterial({ color: DECOR_LEAF_COLORS[i % DECOR_LEAF_COLORS.length], gradientMap: toonGradient })
+    );
+    leaves.position.y = 0.86;
+    decorGroup.add(leaves);
+    scene.add(decorGroup);
+
+    frameEntries.push({ group, decorGroup, art, hitMesh });
   });
 
   document.getElementById("galleryEmptyNote").textContent = hasArt
     ? "" : "the frames are empty for now — add her drawings from the admin page and they'll appear on the walls.";
-
-  currentIndex = Math.min(currentIndex, ringN-1);
-  goToIndex(currentIndex, true);
 }
 
-function applyHeadingLive(h){
-  document.getElementById("ring").style.transform = `rotateY(${h}deg)`;
+function setupGalleryControls(){
+  const canvas = document.getElementById("glCanvas");
+  const viewport = document.getElementById("glViewport");
+
+  window.addEventListener("keydown", e => {
+    if(!document.getElementById("page-gallery").classList.contains("active")) return;
+    if(["w","W","ArrowUp"].includes(e.key)) moveState.fwd = 1;
+    if(["s","S","ArrowDown"].includes(e.key)) moveState.fwd = -1;
+    if(["a","A","ArrowLeft"].includes(e.key)) moveState.strafe = -1;
+    if(["d","D","ArrowRight"].includes(e.key)) moveState.strafe = 1;
+  });
+  window.addEventListener("keyup", e => {
+    if(["w","W","ArrowUp","s","S","ArrowDown"].includes(e.key)) moveState.fwd = 0;
+    if(["a","A","ArrowLeft","d","D","ArrowRight"].includes(e.key)) moveState.strafe = 0;
+  });
+
+  let looking=false, lastX=0, lastY=0;
+  viewport.addEventListener("pointerdown", e => {
+    if(e.target.closest("#joystick") || e.target.closest(".peek-btn")) return;
+    viewport.focus();
+    looking = true; lastX = e.clientX; lastY = e.clientY;
+    try{ viewport.setPointerCapture(e.pointerId); }catch(err){}
+  });
+  viewport.addEventListener("pointermove", e => {
+    if(!looking) return;
+    const dx = e.clientX-lastX, dy = e.clientY-lastY;
+    yaw -= dx * 0.006;
+    pitch = Math.max(-0.9, Math.min(0.9, pitch - dy*0.006));
+    lastX = e.clientX; lastY = e.clientY;
+  });
+  viewport.addEventListener("pointerup", () => looking = false);
+  window.addEventListener("pointerup", () => looking = false);
+
+  const joy = document.getElementById("joystick");
+  const knob = document.getElementById("joystickKnob");
+  let joyActive=false, joyCenter={x:0,y:0};
+  joy.addEventListener("pointerdown", e => {
+    joyActive = true;
+    const r = joy.getBoundingClientRect();
+    joyCenter = { x:r.left+r.width/2, y:r.top+r.height/2 };
+    try{ joy.setPointerCapture(e.pointerId); }catch(err){}
+  });
+  joy.addEventListener("pointermove", e => {
+    if(!joyActive) return;
+    let dx = e.clientX-joyCenter.x, dy = e.clientY-joyCenter.y;
+    const max = 32;
+    const dist = Math.min(Math.hypot(dx,dy), max);
+    const ang = Math.atan2(dy,dx);
+    dx = Math.cos(ang)*dist; dy = Math.sin(ang)*dist;
+    knob.style.transform = `translate(${dx}px, ${dy}px)`;
+    moveState.fwd = -dy/max;
+    moveState.strafe = dx/max;
+  });
+  function joyEnd(){ joyActive=false; knob.style.transform="translate(0,0)"; moveState.fwd=0; moveState.strafe=0; }
+  joy.addEventListener("pointerup", joyEnd);
+  joy.addEventListener("pointercancel", joyEnd);
 }
 
-function goToIndex(i, skipAnim){
-  currentIndex = ((i % ringN) + ringN) % ringN;
-  heading = -currentIndex * bigStep;
-  const ring = document.getElementById("ring");
-  if(skipAnim) ring.classList.add("dragging");
-  applyHeadingLive(heading);
-  if(skipAnim) requestAnimationFrame(() => ring.classList.remove("dragging"));
-
-  frames.forEach((f,i2) => f.el.classList.toggle("front", i2 === currentIndex));
-  const front = frames[currentIndex];
+function updatePeek(){
+  if(!raycaster) return;
+  const dir = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+  raycaster.set(camera.position, dir);
+  const targets = frameEntries.filter(f => f.hitMesh).map(f => f.hitMesh);
+  const hits = raycaster.intersectObjects(targets, false);
   const peekBtn = document.getElementById("peekBtn");
-  peekBtn.hidden = !(front && front.art);
-}
-document.getElementById("peekBtn").addEventListener("click", () => {
-  const front = frames[currentIndex];
-  if(front && front.art) openLightbox(front.art);
-});
-
-const view = document.getElementById("rotundaView");
-document.getElementById("btnLeft").addEventListener("click", () => goToIndex(currentIndex - 1));
-document.getElementById("btnRight").addEventListener("click", () => goToIndex(currentIndex + 1));
-
-view.addEventListener("click", () => view.focus());
-view.addEventListener("keydown", handleTurnKey);
-document.addEventListener("keydown", e => {
-  if(!document.getElementById("page-gallery").classList.contains("active")) return;
-  if(document.activeElement === view) return;
-  handleTurnKey(e);
-});
-function handleTurnKey(e){
-  if(!document.getElementById("page-gallery").classList.contains("active")) return;
-  if(["ArrowLeft","a","A"].includes(e.key)){ e.preventDefault(); goToIndex(currentIndex - 1); }
-  if(["ArrowRight","d","D"].includes(e.key)){ e.preventDefault(); goToIndex(currentIndex + 1); }
-}
-
-/* swipe/drag to turn — mirrors iOS photo-swipe: dragging left brings the
-   next painting to front, exactly like swiping through a Photos album.
-   A quick tap (no real drag) on the left/right half steps one painting
-   that direction, for precision on desktop or a very short swipe. */
-const DRAG_PX_PER_STEP = 200;
-let dragging=false, dragStartX=0, dragStartHeading=0, dragMoved=false;
-const ring = document.getElementById("ring");
-
-view.addEventListener("pointerdown", e => {
-  if(e.target.closest(".ctrl-btn") || e.target.closest("#peekBtn")) return;
-  view.focus();
-  dragging=true; dragMoved=false; dragStartX=e.clientX; dragStartHeading=heading;
-  ring.classList.add("dragging");
-  try{ view.setPointerCapture(e.pointerId); }catch(err){}
-});
-view.addEventListener("pointermove", e => {
-  if(!dragging) return;
-  const dx=e.clientX-dragStartX;
-  if(Math.abs(dx) > 6) dragMoved = true;
-  applyHeadingLive(dragStartHeading + (dx/DRAG_PX_PER_STEP)*bigStep);
-});
-view.addEventListener("pointerup", e => {
-  ring.classList.remove("dragging");
-  if(dragging && dragMoved){
-    const dx=e.clientX-dragStartX;
-    const liveHeading = dragStartHeading + (dx/DRAG_PX_PER_STEP)*bigStep;
-    goToIndex(Math.round(-liveHeading/bigStep));
-  } else if(dragging){
-    const r = view.getBoundingClientRect();
-    const relX = (e.clientX - r.left) / r.width;
-    goToIndex(currentIndex + (relX < 0.5 ? -1 : 1));
+  if(hits.length && hits[0].distance < LOOK_DIST){
+    const entry = frameEntries.find(f => f.hitMesh === hits[0].object);
+    nearestArt = entry ? entry.art : null;
+    peekBtn.hidden = !nearestArt;
+  } else {
+    nearestArt = null;
+    peekBtn.hidden = true;
   }
-  dragging = false;
-});
-window.addEventListener("pointerup", () => { dragging = false; ring.classList.remove("dragging"); });
-view.addEventListener("wheel", e => {
-  if(Math.abs(e.deltaX) < 12) return;
-  goToIndex(currentIndex + (e.deltaX > 0 ? 1 : -1));
-}, {passive:true});
+}
+document.getElementById("peekBtn").addEventListener("click", () => { if(nearestArt) openLightbox(nearestArt); });
+
+const _forward = new THREE.Vector3();
+const _right = new THREE.Vector3();
+let _lastT = null;
+function tick(t){
+  if(!glReady) return;
+  if(_lastT === null) _lastT = t;
+  const dt = Math.min((t-_lastT)/1000, 0.05);
+  _lastT = t;
+
+  camera.rotation.set(pitch, yaw, 0, "YXZ");
+
+  if(moveState.fwd || moveState.strafe){
+    _forward.set(0,0,-1).applyQuaternion(camera.quaternion); _forward.y = 0; _forward.normalize();
+    _right.set(1,0,0).applyQuaternion(camera.quaternion); _right.y = 0; _right.normalize();
+    camPos.addScaledVector(_forward, moveState.fwd * MOVE_SPEED * dt);
+    camPos.addScaledVector(_right, moveState.strafe * MOVE_SPEED * dt);
+    const dist = Math.hypot(camPos.x, camPos.z);
+    const maxDist = ROOM_RADIUS - WALL_MARGIN;
+    if(dist > maxDist){ const s = maxDist/dist; camPos.x *= s; camPos.z *= s; }
+    camera.position.set(camPos.x, EYE_HEIGHT, camPos.z);
+  }
+
+  updatePeek();
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
 
 function openLightbox(art){
   document.getElementById("lbImg").src = art.img;
@@ -936,9 +1073,9 @@ document.getElementById("addGalleryBtn").addEventListener("click", async () => {
   const dataUrl = await imageFileToCompressedDataURL(fileInput.files[0]);
   STATE.gallery.push({ img: dataUrl, caption: cap });
   renderAdminLists();
-  buildRotunda();
+  buildGalleryRoom();
   const ok = await publishState("added to the gallery.");
-  if(!ok){ STATE.gallery.pop(); renderAdminLists(); buildRotunda(); }
+  if(!ok){ STATE.gallery.pop(); renderAdminLists(); buildGalleryRoom(); }
 });
 
 document.getElementById("addNoteBtn").addEventListener("click", async () => {
@@ -984,12 +1121,27 @@ document.getElementById("addRewardBtn").addEventListener("click", async () => {
   claimed = savedProgress.claimed || 0;
 
   renderCounter();
-  buildRotunda();
+  initGL();
+  buildGalleryRoom();
   buildNotes();
   renderStreak();
   buildRoutines();
   fitSketchCanvas();
   renderAdminLists();
+
+  // debug hook — harmless, lets the console (or a test) inspect/drive live state
+  window.STATE = STATE;
+  window.buildGalleryRoom = buildGalleryRoom;
+  window.__gallery = {
+    get camera(){ return camera; },
+    get moveState(){ return moveState; },
+    get yaw(){ return yaw; },
+    set yaw(v){ yaw = v; },
+    get pitch(){ return pitch; },
+    set pitch(v){ pitch = v; },
+    get camPos(){ return camPos; },
+    get nearestArt(){ return nearestArt; }
+  };
 })();
 </script>
 </body>
