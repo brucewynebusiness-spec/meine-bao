@@ -180,18 +180,51 @@ nav.tabs button:hover{ transform:translateY(-1px); }
   padding:14px 18px; margin-bottom:16px; box-shadow:0 6px 14px var(--shadow);
 }
 .streak-num{ font-family:'Caveat',cursive; font-size:2rem; color:var(--gold); }
-.routine-list{ display:flex; flex-direction:column; gap:10px; }
-.routine{
-  background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px 18px;
+
+.cal-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.cal-header button{
+  border:1px solid var(--line); background:var(--card); border-radius:999px;
+  width:34px; height:34px; cursor:pointer; font-size:1.1rem; color:var(--ink);
+}
+.cal-month-label{ font-family:'Caveat',cursive; font-size:1.4rem; color:var(--rose-deep); }
+.cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:14px; }
+.cal-dow{ text-align:center; font-size:0.7rem; color:var(--ink-soft); font-weight:700; padding-bottom:2px; }
+.cal-day{
+  aspect-ratio:1/1; border-radius:10px; border:1px solid var(--line); background:var(--card);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; position:relative; font-size:0.85rem; transition:transform .15s;
+}
+.cal-day:hover{ transform:translateY(-2px); }
+.cal-day.empty{ visibility:hidden; cursor:default; }
+.cal-day.empty:hover{ transform:none; }
+.cal-day.today{ border-color:var(--gold); border-width:2px; font-weight:700; }
+.cal-day.has-video::after{
+  content:"▶"; position:absolute; bottom:3px; font-size:0.55rem; color:var(--rose-deep);
+}
+.cal-day.done{ background:linear-gradient(160deg,#eafcef,#d7f5df); border-color:#4a8a5c; }
+.cal-day.done::before{
+  content:"✓"; position:absolute; top:2px; right:4px; font-size:0.65rem; color:#2e7a43; font-weight:800;
+}
+.cal-day.selected{ outline:2px solid var(--rose); outline-offset:1px; }
+.cal-detail{
+  background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:16px;
   box-shadow:0 6px 14px var(--shadow);
 }
-.routine summary{ cursor:pointer; font-weight:700; display:flex; justify-content:space-between; align-items:center; }
-.routine ul{ margin:10px 0 4px; padding-left:20px; color:var(--ink-soft); line-height:1.7; }
-.routine .done-btn{
-  margin-top:10px; border:none; background:var(--rose); color:#fff; padding:8px 18px;
-  border-radius:999px; cursor:pointer; font-weight:700;
+.cal-detail-date{ font-family:'Caveat',cursive; font-size:1.3rem; color:var(--rose-deep); margin-bottom:8px; }
+.cal-video-embed{ position:relative; width:100%; aspect-ratio:16/9; border-radius:10px; overflow:hidden; margin-bottom:10px; background:#000; }
+.cal-video-embed iframe{ width:100%; height:100%; border:0; display:block; }
+.cal-video-link{ display:inline-block; margin-bottom:10px; color:var(--rose-deep); font-weight:700; text-decoration:none; }
+.cal-detail input[type=text]{
+  width:100%; padding:8px 10px; border-radius:10px; border:1px solid var(--line);
+  font-family:'Quicksand',sans-serif; background:var(--bg);
 }
-.routine .done-btn[disabled]{ background:var(--line); color:var(--ink-soft); cursor:default; }
+.cal-detail-actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.cal-detail-actions button{
+  border:none; border-radius:999px; padding:9px 18px; font-weight:700; cursor:pointer;
+}
+#calSaveVideo{ background:var(--bg2); color:var(--ink); border:1px solid var(--line); }
+#calMarkDone{ background:var(--rose); color:#fff; }
+#calMarkDone.done{ background:#4a8a5c; }
 .reward-reveal{
   margin-top:18px; padding:18px; border-radius:16px; background:var(--bg2);
   border:1px dashed var(--gold); text-align:center;
@@ -301,17 +334,36 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 
   <!-- WORKOUT -->
   <section class="page" id="page-workout">
-    <h2 class="script" style="margin:0 0 10px;">home workout companion</h2>
+    <h2 class="script" style="margin:0 0 10px;">home workout calendar</h2>
+    <p style="color:var(--ink-soft);font-size:0.85rem;margin-top:-6px;">
+      Pick whatever workout video you want from your own YouTube — pop it onto today, or get ahead and line one up for a future day. Once you've actually done it, mark that day complete.
+    </p>
     <div class="streak-bar">
       <div>
         <div class="streak-num" id="streakNum">0</div>
-        <div style="font-size:0.8rem;color:var(--ink-soft);">workouts completed</div>
+        <div style="font-size:0.8rem;color:var(--ink-soft);">days completed</div>
       </div>
       <div style="font-size:0.8rem;color:var(--ink-soft);text-align:right;">
-        finish any routine below<br>to unlock a little reward
+        mark a day complete<br>to unlock a little reward
       </div>
     </div>
-    <div class="routine-list" id="routineList"></div>
+    <div class="cal-header">
+      <button id="calPrev" aria-label="previous month">‹</button>
+      <div class="cal-month-label" id="calMonthLabel"></div>
+      <button id="calNext" aria-label="next month">›</button>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="cal-detail" id="calDetail" hidden>
+      <div class="cal-detail-date" id="calDetailDate"></div>
+      <div id="calVideoArea"></div>
+      <label style="display:block;font-size:0.8rem;font-weight:700;margin:8px 0 4px;">YouTube link for this day</label>
+      <input type="text" id="calVideoInput" placeholder="paste a YouTube link">
+      <div class="cal-detail-actions">
+        <button id="calSaveVideo">save video</button>
+        <button id="calMarkDone">mark complete ✓</button>
+      </div>
+      <p class="status-msg" id="calStatus"></p>
+    </div>
     <div id="rewardArea"></div>
   </section>
 
@@ -464,16 +516,9 @@ const STATE = {
   ],
   rewards: [
     { type: "text", content: "", caption: "You did it! Here's a start: I love you more than words fit on a screen. More rewards coming as you add them 🤍" }
-  ]
+  ],
+  workoutCalendar: {} // "YYYY-MM-DD" -> { videoUrl, completed, rewardClaimed }
 };
-
-const ROUTINES = [
-  { name: "5-Minute Wake Up", steps: ["20 jumping jacks","10 bodyweight squats","20s plank","10 standing knee raises each side","stretch it out"] },
-  { name: "No-Equipment Legs", steps: ["15 squats","10 lunges each leg","20 glute bridges","30s wall sit","calf raises x15"] },
-  { name: "Core & Cute", steps: ["20 crunches","30s plank","15 bicycle kicks each side","10 leg raises","20s side plank each side"] },
-  { name: "Full Body Flow", steps: ["10 push-ups (knees ok!)","15 squats","20 jumping jacks","30s plank","10 burpees or step-back burpees"] },
-  { name: "Gentle Stretch Day", steps: ["cat-cow x8","forward fold 30s","hip flexor stretch 30s each side","child's pose 1 min","deep breaths x10"] }
-];
 
 /* ================= tabs ================= */
 const tabs = document.querySelectorAll("nav.tabs button");
@@ -1151,33 +1196,149 @@ let streak = 0, claimed = 0;
 function renderStreak(){ document.getElementById("streakNum").textContent = streak; }
 async function saveProgress(){ await Store.saveProgress({ streak, claimed }); }
 
-function buildRoutines(){
-  const list = document.getElementById("routineList");
-  list.innerHTML = "";
-  ROUTINES.forEach(r => {
-    const det = document.createElement("details");
-    det.className = "routine";
-    const sum = document.createElement("summary");
-    sum.textContent = r.name;
-    det.appendChild(sum);
-    const ul = document.createElement("ul");
-    r.steps.forEach(s => { const li=document.createElement("li"); li.textContent=s; ul.appendChild(li); });
-    det.appendChild(ul);
-    const btn = document.createElement("button");
-    btn.className = "done-btn";
-    btn.textContent = "mark complete";
-    btn.addEventListener("click", () => completeWorkout());
-    det.appendChild(btn);
-    list.appendChild(det);
-  });
+/* ================= workout calendar =================
+   She picks her own workout from her own YouTube videos — no prescribed
+   routines. A day can have a video attached (today's or a future one she's
+   lined up ahead of time) and gets marked done once she's actually done it.
+   A reward unlocks the first time (and only the first time) a given day is
+   marked complete. */
+const today = new Date();
+let calViewYear = today.getFullYear();
+let calViewMonth = today.getMonth(); // 0-indexed
+let calSelectedDate = null; // "YYYY-MM-DD"
+
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+function calDateStr(y, m, day){
+  return y + "-" + String(m+1).padStart(2,"0") + "-" + String(day).padStart(2,"0");
+}
+function extractYouTubeId(url){
+  if(!url) return null;
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{6,})/);
+  return m ? m[1] : null;
 }
 
-async function completeWorkout(){
-  streak++;
-  await saveProgress();
-  renderStreak();
-  revealReward();
+function buildCalendar(){
+  const grid = document.getElementById("calGrid");
+  grid.innerHTML = "";
+  ["S","M","T","W","T","F","S"].forEach(d => {
+    const el = document.createElement("div");
+    el.className = "cal-dow";
+    el.textContent = d;
+    grid.appendChild(el);
+  });
+
+  const firstDay = new Date(calViewYear, calViewMonth, 1);
+  document.getElementById("calMonthLabel").textContent =
+    firstDay.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+  const startWeekday = firstDay.getDay();
+  const daysInMonth = new Date(calViewYear, calViewMonth+1, 0).getDate();
+  for(let i=0; i<startWeekday; i++){
+    const el = document.createElement("div");
+    el.className = "cal-day empty";
+    grid.appendChild(el);
+  }
+
+  const now = todayStr();
+  for(let day=1; day<=daysInMonth; day++){
+    const ds = calDateStr(calViewYear, calViewMonth, day);
+    const entry = STATE.workoutCalendar[ds];
+    const el = document.createElement("div");
+    el.className = "cal-day";
+    if(ds === now) el.classList.add("today");
+    if(entry && entry.videoUrl) el.classList.add("has-video");
+    if(entry && entry.completed) el.classList.add("done");
+    if(ds === calSelectedDate) el.classList.add("selected");
+    el.textContent = day;
+    el.addEventListener("click", () => selectCalendarDay(ds));
+    grid.appendChild(el);
+  }
 }
+
+function selectCalendarDay(ds){
+  calSelectedDate = ds;
+  buildCalendar();
+
+  const detail = document.getElementById("calDetail");
+  detail.hidden = false;
+  document.getElementById("calStatus").textContent = "";
+  const entry = STATE.workoutCalendar[ds] || {};
+  const dateObj = new Date(ds + "T00:00:00");
+  document.getElementById("calDetailDate").textContent =
+    dateObj.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  document.getElementById("calVideoInput").value = entry.videoUrl || "";
+
+  const videoArea = document.getElementById("calVideoArea");
+  if(entry.videoUrl){
+    const vid = extractYouTubeId(entry.videoUrl);
+    videoArea.innerHTML = vid
+      ? `<div class="cal-video-embed"><iframe src="https://www.youtube.com/embed/${vid}" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`
+      : `<a class="cal-video-link" href="${entry.videoUrl.replace(/"/g,"&quot;")}" target="_blank" rel="noopener">▶ open video ↗</a>`;
+  } else {
+    videoArea.innerHTML = `<p style="color:var(--ink-soft);font-size:0.85rem;">no video picked for this day yet.</p>`;
+  }
+
+  const doneBtn = document.getElementById("calMarkDone");
+  doneBtn.textContent = entry.completed ? "✓ completed — click to undo" : "mark complete ✓";
+  doneBtn.classList.toggle("done", !!entry.completed);
+}
+
+document.getElementById("calPrev").addEventListener("click", () => {
+  calViewMonth--; if(calViewMonth < 0){ calViewMonth = 11; calViewYear--; }
+  buildCalendar();
+});
+document.getElementById("calNext").addEventListener("click", () => {
+  calViewMonth++; if(calViewMonth > 11){ calViewMonth = 0; calViewYear++; }
+  buildCalendar();
+});
+
+document.getElementById("calSaveVideo").addEventListener("click", async () => {
+  if(!calSelectedDate) return;
+  const url = document.getElementById("calVideoInput").value.trim();
+  const entry = STATE.workoutCalendar[calSelectedDate] || {};
+  entry.videoUrl = url;
+  STATE.workoutCalendar[calSelectedDate] = entry;
+  const status = document.getElementById("calStatus");
+  try{
+    await Store.saveContent(STATE);
+    status.textContent = "saved.";
+    status.className = "status-msg ok";
+  }catch(err){
+    status.textContent = "couldn't save — try again.";
+    status.className = "status-msg err";
+  }
+  buildCalendar();
+  selectCalendarDay(calSelectedDate);
+});
+
+document.getElementById("calMarkDone").addEventListener("click", async () => {
+  if(!calSelectedDate) return;
+  const entry = STATE.workoutCalendar[calSelectedDate] || {};
+  entry.completed = !entry.completed;
+  STATE.workoutCalendar[calSelectedDate] = entry;
+
+  if(entry.completed && !entry.rewardClaimed){
+    entry.rewardClaimed = true;
+    streak++;
+    await saveProgress();
+    renderStreak();
+    revealReward();
+  }
+
+  const status = document.getElementById("calStatus");
+  try{
+    await Store.saveContent(STATE);
+    status.textContent = "";
+  }catch(err){
+    status.textContent = "couldn't save — try again.";
+    status.className = "status-msg err";
+  }
+  buildCalendar();
+  selectCalendarDay(calSelectedDate);
+});
 
 function revealReward(){
   const area = document.getElementById("rewardArea");
@@ -1410,7 +1571,8 @@ document.getElementById("addRewardBtn").addEventListener("click", async () => {
   buildGalleryRoom();
   buildNotes();
   renderStreak();
-  buildRoutines();
+  if(!STATE.workoutCalendar) STATE.workoutCalendar = {};
+  buildCalendar();
   fitSketchCanvas();
   renderAdminLists();
 
