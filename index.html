@@ -136,12 +136,17 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 }
 .peek-btn[hidden]{ display:none; }
 @keyframes pop{ from{ transform:translateX(-50%) scale(0.85); opacity:0; } to{ transform:translateX(-50%) scale(1); opacity:1; } }
-.joystick{
-  position:absolute; left:16px; bottom:16px; width:96px; height:96px; border-radius:50%;
-  background:radial-gradient(circle at 35% 28%, rgba(255,255,255,0.55), rgba(120,205,235,0.18) 55%, rgba(11,111,176,0.22) 100%);
-  border:1px solid rgba(255,255,255,0.55); touch-action:none;
-  box-shadow:0 6px 16px rgba(11,58,85,0.35), inset 0 2px 4px rgba(255,255,255,0.5);
+.joystick-zone{
+  position:absolute; left:0; bottom:0; width:52%; height:62%; z-index:3; touch-action:none;
 }
+.joystick{
+  position:absolute; width:96px; height:96px; margin:-48px 0 0 -48px; border-radius:50%;
+  background:radial-gradient(circle at 35% 28%, rgba(255,255,255,0.55), rgba(120,205,235,0.18) 55%, rgba(11,111,176,0.22) 100%);
+  border:1px solid rgba(255,255,255,0.55); touch-action:none; pointer-events:none;
+  box-shadow:0 6px 16px rgba(11,58,85,0.35), inset 0 2px 4px rgba(255,255,255,0.5);
+  opacity:0; transition:opacity .15s ease;
+}
+.joystick.active{ opacity:1; }
 .joystick-knob{
   position:absolute; width:42px; height:42px; border-radius:50%;
   background:radial-gradient(circle at 35% 28%, #ffffff, #a9def0 60%, #4fb3d9 100%);
@@ -399,6 +404,7 @@ nav.tabs button:hover{ transform:translateY(-1px); }
         <button class="peek-btn" id="peekBtn" hidden>view this painting ✦</button>
         <button class="mute-btn" id="muteBtn" aria-label="mute sound" title="mute sound">🔊</button>
         <button class="surface-btn" id="surfaceBtn">✕ surface</button>
+        <div class="joystick-zone" id="joystickZone"></div>
         <div class="joystick" id="joystick"><div class="joystick-knob" id="joystickKnob"></div></div>
       </div>
     </div>
@@ -1280,35 +1286,58 @@ function setupGalleryControls(){
     if(["a","A","ArrowLeft","d","D","ArrowRight"].includes(e.key)) moveState.strafe = 0;
   });
 
-  let looking=false, lastX=0, lastY=0;
+  /* look-drag and the joystick are two independent simultaneous touches on
+     mobile (one thumb on each), so every handler below is keyed to its OWN
+     pointerId and stops propagation — without that, a second finger's
+     pointermove events bubble up and get misread as look-drag movement
+     from the first finger, corrupting yaw/pitch (the "random teleport"
+     glitch). */
+  let lookPointerId = null, lastX=0, lastY=0;
   viewport.addEventListener("pointerdown", e => {
     GalleryAudio.init();
-    if(e.target.closest("#joystick") || e.target.closest(".peek-btn") || e.target.closest("#muteBtn") || e.target.closest("#surfaceBtn")) return;
+    if(e.target.closest("#joystickZone") || e.target.closest(".peek-btn") || e.target.closest("#muteBtn") || e.target.closest("#surfaceBtn")) return;
+    if(lookPointerId !== null) return; // already tracking a look-drag finger
     viewport.focus();
-    looking = true; lastX = e.clientX; lastY = e.clientY;
+    lookPointerId = e.pointerId; lastX = e.clientX; lastY = e.clientY;
     try{ viewport.setPointerCapture(e.pointerId); }catch(err){}
   });
   viewport.addEventListener("pointermove", e => {
-    if(!looking) return;
+    if(e.pointerId !== lookPointerId) return;
     const dx = e.clientX-lastX, dy = e.clientY-lastY;
     yaw -= dx * 0.006;
     pitch = Math.max(-0.9, Math.min(0.9, pitch - dy*0.006));
     lastX = e.clientX; lastY = e.clientY;
   });
-  viewport.addEventListener("pointerup", () => looking = false);
-  window.addEventListener("pointerup", () => looking = false);
+  function lookEnd(e){ if(e.pointerId === lookPointerId) lookPointerId = null; }
+  viewport.addEventListener("pointerup", lookEnd);
+  viewport.addEventListener("pointercancel", lookEnd);
+  window.addEventListener("pointerup", lookEnd);
 
+  /* floating joystick: appears wherever the thumb first touches down inside
+     the lower-left movement zone, instead of a fixed circle she has to
+     reach for — the standard mobile-game "dynamic joystick" pattern. */
+  const zone = document.getElementById("joystickZone");
   const joy = document.getElementById("joystick");
   const knob = document.getElementById("joystickKnob");
-  let joyActive=false, joyCenter={x:0,y:0};
-  joy.addEventListener("pointerdown", e => {
-    joyActive = true;
-    const r = joy.getBoundingClientRect();
-    joyCenter = { x:r.left+r.width/2, y:r.top+r.height/2 };
-    try{ joy.setPointerCapture(e.pointerId); }catch(err){}
+  let joyPointerId = null, joyCenter={x:0,y:0};
+  zone.addEventListener("pointerdown", e => {
+    e.stopPropagation();
+    if(joyPointerId !== null) return;
+    joyPointerId = e.pointerId;
+    const vb = viewport.getBoundingClientRect();
+    const half = 48;
+    const cx = Math.min(Math.max(e.clientX, vb.left+half), vb.right-half);
+    const cy = Math.min(Math.max(e.clientY, vb.top+half), vb.bottom-half);
+    joyCenter = { x: cx, y: cy };
+    joy.style.left = (cx - vb.left) + "px";
+    joy.style.top = (cy - vb.top) + "px";
+    joy.classList.add("active");
+    knob.style.transform = "translate(0,0)";
+    try{ zone.setPointerCapture(e.pointerId); }catch(err){}
   });
-  joy.addEventListener("pointermove", e => {
-    if(!joyActive) return;
+  zone.addEventListener("pointermove", e => {
+    if(e.pointerId !== joyPointerId) return;
+    e.stopPropagation();
     let dx = e.clientX-joyCenter.x, dy = e.clientY-joyCenter.y;
     const max = 32;
     const dist = Math.min(Math.hypot(dx,dy), max);
@@ -1318,9 +1347,16 @@ function setupGalleryControls(){
     moveState.fwd = -dy/max;
     moveState.strafe = dx/max;
   });
-  function joyEnd(){ joyActive=false; knob.style.transform="translate(0,0)"; moveState.fwd=0; moveState.strafe=0; }
-  joy.addEventListener("pointerup", joyEnd);
-  joy.addEventListener("pointercancel", joyEnd);
+  function joyEnd(e){
+    if(e.pointerId !== joyPointerId) return;
+    e.stopPropagation();
+    joyPointerId = null;
+    joy.classList.remove("active");
+    knob.style.transform = "translate(0,0)";
+    moveState.fwd = 0; moveState.strafe = 0;
+  }
+  zone.addEventListener("pointerup", joyEnd);
+  zone.addEventListener("pointercancel", joyEnd);
 }
 
 /* ---------------- live presence: when you're both on the site at the same
