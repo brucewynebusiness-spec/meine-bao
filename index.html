@@ -305,6 +305,25 @@ nav.tabs button:hover{ transform:translateY(-1px); }
   box-shadow:0 4px 10px rgba(11,58,85,0.3), inset 0 1px 3px rgba(255,255,255,0.6);
 }
 
+.dive-btn{
+  display:block; margin:12px auto 0; border:none; border-radius:999px;
+  background:linear-gradient(180deg,#5be3f0 0%,#17b6d4 55%,#0a6f8a 100%);
+  color:#04303e; font-weight:700; padding:11px 24px; cursor:pointer; font-size:0.9rem;
+  border-top:1px solid rgba(255,255,255,0.85);
+  box-shadow:0 8px 18px rgba(11,58,85,0.4), inset 0 1px 3px rgba(255,255,255,0.7);
+}
+.gl-viewport.immersive{
+  position:fixed; inset:0; width:100vw; height:100vh; z-index:1000;
+  border-radius:0; aspect-ratio:auto;
+}
+.surface-btn{
+  position:absolute; top:12px; left:12px; z-index:6;
+  background:rgba(255,255,255,0.88); border:1px solid rgba(255,255,255,0.7);
+  border-radius:999px; padding:8px 16px; font-weight:700; color:#0b3a55; cursor:pointer;
+  box-shadow:0 4px 10px rgba(11,58,85,0.3); display:none; font-size:0.85rem;
+}
+.gl-viewport.immersive .surface-btn{ display:block; }
+
 /* ---------- memory timeline ---------- */
 .timeline{ position:relative; padding-left:22px; }
 .timeline::before{
@@ -379,9 +398,11 @@ nav.tabs button:hover{ transform:translateY(-1px); }
         <div class="gl-hint">drag to look around · WASD or the joystick to walk</div>
         <button class="peek-btn" id="peekBtn" hidden>view this painting ✦</button>
         <button class="mute-btn" id="muteBtn" aria-label="mute sound" title="mute sound">🔊</button>
+        <button class="surface-btn" id="surfaceBtn">✕ surface</button>
         <div class="joystick" id="joystick"><div class="joystick-knob" id="joystickKnob"></div></div>
       </div>
     </div>
+    <button class="dive-btn" id="diveBtn">🤿 dive in fully</button>
     <p class="gallery-empty-note" id="galleryEmptyNote"></p>
   </section>
 
@@ -653,16 +674,22 @@ setInterval(renderCounter, 60000);
    movement, and a raycast crosshair to interact with whichever painting
    you're actually looking at.
    ========================================================================= */
-const ROOM_RADIUS = 9;
-const ROOM_HEIGHT = 5;
+const ROOM_RADIUS = 9;       // the reef clearing where her paintings live
+const ROOM_HEIGHT = 5;       // ambient upper bound for bubbles/fish/jellyfish height range
+const WORLD_RADIUS = 55;     // how far out into the open water she can swim
+const FLOOR_RADIUS = 260;    // visual seabed extent — far past the fog line, reads as endless
 const EYE_HEIGHT = 1.65;
-const WALL_MARGIN = 0.7;
+const WALL_MARGIN = 1.2;
 const MOVE_SPEED = 3.4;
 const LOOK_DIST = 6.5;
-const DECOR_LEAF_COLORS = [0x6c9a6c, 0x7ba36b, 0x5f8f6f, 0x86a86a];
+const KELP_COLORS = [0x3f8f5c, 0x2f7a52, 0x4fa06a, 0x357a5f];
+const CORAL_COLORS = [0xff8f6b, 0xff6f9e, 0xffb84f, 0xc77fe0, 0x6be0d0];
 
 let renderer, scene, camera, raycaster, toonGradient, hemiLight, keyLight;
 let frameEntries = [];           // { group, art, hitMesh }
+let kelpBlades = [];              // swaying flora
+let sharks = [];                  // large distant patrollers
+let jellyfish = [];               // drifting, pulsing bioluminescent bells
 let camPos = new THREE.Vector3(0, EYE_HEIGHT, ROOM_RADIUS * 0.35);
 let yaw = Math.PI, pitch = 0;    // start facing the first painting
 let moveState = { fwd: 0, strafe: 0 };
@@ -784,8 +811,8 @@ function makePlaqueTexture(text){
   return tex;
 }
 
-function makeFloorTexture(){
-  // glossy Frutiger-Aero floor: cool teal glass with a bright specular pool
+function makeClearingFloorTexture(){
+  // the reef clearing under her gallery: glossy teal glass with a bright specular pool
   const canvas = document.createElement("canvas");
   canvas.width = 512; canvas.height = 512;
   const ctx = canvas.getContext("2d");
@@ -802,6 +829,34 @@ function makeFloorTexture(){
   for(let r=36;r<260;r+=36){ ctx.beginPath(); ctx.arc(256,256,r,0,Math.PI*2); ctx.stroke(); }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeSeabedTexture(){
+  // the endless seabed stretching out past the reef — a tileable sandy pattern
+  const canvas = document.createElement("canvas");
+  canvas.width = 256; canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#3f9fb0";
+  ctx.fillRect(0,0,256,256);
+  // soft repeating ripple bands (periods chosen to divide the canvas evenly so they tile cleanly)
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.lineWidth = 3;
+  for(let y=16; y<256; y+=32){
+    ctx.beginPath();
+    for(let x=0;x<=256;x+=8){ const yy = y + Math.sin((x/256)*Math.PI*4)*6; x===0 ? ctx.moveTo(x,yy) : ctx.lineTo(x,yy); }
+    ctx.stroke();
+  }
+  // scattered speckles for texture
+  ctx.fillStyle = "rgba(20,70,80,0.15)";
+  for(let i=0;i<70;i++){
+    const x = (i*37)%256, y = (i*61)%256;
+    ctx.beginPath(); ctx.arc(x,y, 1.5+((i*7)%3), 0, Math.PI*2); ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(FLOOR_RADIUS/6, FLOOR_RADIUS/6);
   return tex;
 }
 
@@ -856,6 +911,114 @@ function updateFish(dt, tSec){
     const nextY = u.height + Math.sin((tSec+0.06)*u.bobSpeed + u.bobPhase) * u.bobAmp;
     const lookTarget = new THREE.Vector3(u.cx + Math.sin(nextAng)*u.radius, nextY, u.cz + Math.cos(nextAng)*u.radius);
     fish.lookAt(lookTarget);
+  });
+}
+
+function updateKelp(t){
+  kelpBlades.forEach(k => { k.obj.rotation.x = Math.sin(t*0.001*k.speed + k.phase) * k.amp; });
+}
+
+/* big, slow, distant patrollers out past the reef — give the open water a
+   sense of scale without ever swimming close enough to feel threatening */
+function makeShark(){
+  const group = new THREE.Group();
+  const mat = new THREE.MeshToonMaterial({ color: 0x7a8a94, gradientMap: toonGradient });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), mat);
+  body.scale.set(0.55, 0.65, 2.1);
+  group.add(body);
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.5, 3), mat);
+  tail.rotation.x = Math.PI/2; tail.rotation.z = Math.PI/2;
+  tail.position.set(0, 0, 0.65);
+  group.add(tail);
+  const finMat = new THREE.MeshToonMaterial({ color: 0x5f6f7a, gradientMap: toonGradient });
+  const dorsal = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.34, 3), finMat);
+  dorsal.position.set(0, 0.32, -0.05);
+  group.add(dorsal);
+  return group;
+}
+function initSharks(){
+  for(let i=0;i<3;i++){
+    const shark = makeShark();
+    shark.userData = {
+      cx: (Math.random()-0.5) * 14,
+      cz: (Math.random()-0.5) * 14,
+      radius: 16 + Math.random()*22,
+      angSpeed: (Math.random() < 0.5 ? -1 : 1) * (0.045 + Math.random()*0.05),
+      angPhase: Math.random()*Math.PI*2,
+      height: 1.0 + Math.random()*2.5,
+      bobAmp: 0.1, bobSpeed: 0.3, bobPhase: Math.random()*Math.PI*2,
+      scale: 1.6 + Math.random()*1.3
+    };
+    shark.scale.setScalar(shark.userData.scale);
+    scene.add(shark);
+    sharks.push(shark);
+  }
+}
+function updateSharks(dt, tSec){
+  sharks.forEach(shark => {
+    const u = shark.userData;
+    const ang = u.angPhase + tSec * u.angSpeed;
+    const y = u.height + Math.sin(tSec*u.bobSpeed + u.bobPhase) * u.bobAmp;
+    shark.position.set(u.cx + Math.sin(ang)*u.radius, y, u.cz + Math.cos(ang)*u.radius);
+    const nextAng = ang + u.angSpeed*0.06;
+    const lookTarget = new THREE.Vector3(u.cx + Math.sin(nextAng)*u.radius, y, u.cz + Math.cos(nextAng)*u.radius);
+    shark.lookAt(lookTarget);
+  });
+}
+
+/* drifting, pulsing bioluminescent jellyfish — bell scales in and out like a
+   real pulse, tentacles sway independently */
+function makeJellyfish(color){
+  const group = new THREE.Group();
+  const bellMat = new THREE.MeshToonMaterial({ color, gradientMap: toonGradient, transparent:true, opacity:0.62, side: THREE.DoubleSide });
+  const bell = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 8), bellMat);
+  bell.scale.set(1, 0.7, 1);
+  group.add(bell);
+  const tentMat = new THREE.MeshToonMaterial({ color, gradientMap: toonGradient, transparent:true, opacity:0.5 });
+  const tentacles = [];
+  for(let i=0;i<6;i++){
+    const a = (i/6)*Math.PI*2;
+    const len = 0.4 + Math.random()*0.35;
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.006, len, 4), tentMat);
+    t.geometry.translate(0, -len/2, 0);
+    t.position.set(Math.sin(a)*0.14, -0.1, Math.cos(a)*0.14);
+    group.add(t);
+    tentacles.push({ obj: t, phase: Math.random()*Math.PI*2 });
+  }
+  group.userData.bell = bell;
+  group.userData.tentacles = tentacles;
+  return group;
+}
+function initJellyfish(){
+  const colors = [0xff9ed6, 0xb98cf0, 0x8cd9f0, 0xffe08c];
+  for(let i=0;i<7;i++){
+    const jf = makeJellyfish(colors[i % colors.length]);
+    jf.userData.orbit = {
+      cx: (Math.random()-0.5) * 30,
+      cz: (Math.random()-0.5) * 30,
+      radius: 2 + Math.random()*18,
+      angSpeed: (Math.random() < 0.5 ? -1 : 1) * (0.06 + Math.random()*0.08),
+      angPhase: Math.random()*Math.PI*2,
+      height: 0.6 + Math.random()*3.5,
+      bobAmp: 0.25 + Math.random()*0.2,
+      bobSpeed: 0.35 + Math.random()*0.25,
+      bobPhase: Math.random()*Math.PI*2,
+      pulsePhase: Math.random()*Math.PI*2
+    };
+    jf.scale.setScalar(0.8 + Math.random()*0.9);
+    scene.add(jf);
+    jellyfish.push(jf);
+  }
+}
+function updateJellyfish(dt, tSec){
+  jellyfish.forEach(jf => {
+    const o = jf.userData.orbit;
+    const ang = o.angPhase + tSec * o.angSpeed;
+    const y = o.height + Math.sin(tSec*o.bobSpeed + o.bobPhase) * o.bobAmp;
+    jf.position.set(o.cx + Math.sin(ang)*o.radius, y, o.cz + Math.cos(ang)*o.radius);
+    const pulse = 1 + Math.sin(tSec*1.6 + o.pulsePhase) * 0.12;
+    jf.userData.bell.scale.set(pulse, 0.7*pulse, pulse);
+    jf.userData.tentacles.forEach(t => { t.obj.rotation.x = Math.sin(tSec*1.4 + t.phase) * 0.25; t.obj.rotation.z = Math.cos(tSec*1.1 + t.phase) * 0.25; });
   });
 }
 
@@ -941,7 +1104,7 @@ function initGL(){
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0xcdeef8);
-  scene.fog = new THREE.Fog(0xcdeef8, 6, 15); // closer, hazier — reads as underwater visibility
+  scene.fog = new THREE.Fog(0xcdeef8, 8, 42); // hazy up close, but far enough that sharks and jellyfish loom into view out in the open water instead of staying hidden
 
   camera = new THREE.PerspectiveCamera(62, 1, 0.1, 100);
   raycaster = new THREE.Raycaster();
@@ -954,30 +1117,25 @@ function initGL(){
   scene.add(keyLight);
   applyDayNightLighting();
 
-  // pale glassy aqua walls with a bright glossy sheen band, Frutiger-Aero style
-  const wallMat = new THREE.MeshToonMaterial({ color: 0xe4f8fb, gradientMap: toonGradient, side: THREE.BackSide });
-  const wall = new THREE.Mesh(new THREE.CylinderGeometry(ROOM_RADIUS, ROOM_RADIUS, ROOM_HEIGHT, 48, 1, true), wallMat);
-  wall.position.y = ROOM_HEIGHT/2;
-  scene.add(wall);
-  const sheenMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent:true, opacity:0.16, side: THREE.BackSide });
-  const sheen = new THREE.Mesh(new THREE.CylinderGeometry(ROOM_RADIUS-0.02, ROOM_RADIUS-0.02, 0.9, 48, 1, true), sheenMat);
-  sheen.position.y = ROOM_HEIGHT*0.78;
-  scene.add(sheen);
+  // no walls or ceiling — an open, boundless ocean. The seabed tiles far past
+  // the fog line so its edge is never visible, and a brighter "reef clearing"
+  // patch marks the spot where her gallery actually stands.
+  const seabedMat = new THREE.MeshToonMaterial({ map: makeSeabedTexture(), gradientMap: toonGradient });
+  const seabed = new THREE.Mesh(new THREE.PlaneGeometry(FLOOR_RADIUS*2, FLOOR_RADIUS*2), seabedMat);
+  seabed.rotation.x = -Math.PI/2;
+  scene.add(seabed);
 
-  const floorMat = new THREE.MeshToonMaterial({ map: makeFloorTexture(), gradientMap: toonGradient });
-  const floor = new THREE.Mesh(new THREE.CircleGeometry(ROOM_RADIUS, 48), floorMat);
-  floor.rotation.x = -Math.PI/2;
-  scene.add(floor);
-
-  const ceilMat = new THREE.MeshToonMaterial({ color: 0xf5fdff, gradientMap: toonGradient });
-  const ceil = new THREE.Mesh(new THREE.CircleGeometry(ROOM_RADIUS, 48), ceilMat);
-  ceil.rotation.x = Math.PI/2;
-  ceil.position.y = ROOM_HEIGHT;
-  scene.add(ceil);
+  const clearingMat = new THREE.MeshToonMaterial({ map: makeClearingFloorTexture(), gradientMap: toonGradient, transparent:true });
+  const clearing = new THREE.Mesh(new THREE.CircleGeometry(ROOM_RADIUS+1.5, 48), clearingMat);
+  clearing.rotation.x = -Math.PI/2;
+  clearing.position.y = 0.01;
+  scene.add(clearing);
 
   camera.position.copy(camPos);
   initFish();
   initBubbles();
+  initSharks();
+  initJellyfish();
 
   resizeGL();
   window.addEventListener("resize", resizeGL);
@@ -1016,6 +1174,7 @@ function buildGalleryRoom(){
   frameEntries.forEach(f => scene.remove(f.group));
   frameEntries.forEach(f => scene.remove(f.decorGroup));
   frameEntries = [];
+  kelpBlades = [];
 
   const hasArt = STATE.gallery.length > 0;
   const arts = hasArt ? STATE.gallery : [null, null, null, null];
@@ -1029,6 +1188,15 @@ function buildGalleryRoom(){
     const group = new THREE.Group();
     group.position.set(x, 2.05, z);
     group.lookAt(0, 2.05, 0);
+
+    // a coral-rock pedestal rising from the seabed to hold the frame —
+    // this is a straight-down local -Y column, and since the group only
+    // ever yaws (source and target share the same height), it stays
+    // perfectly vertical regardless of which way the frame is facing.
+    const pedestalMat = new THREE.MeshToonMaterial({ color: 0x9a8478, gradientMap: toonGradient });
+    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.32, 1.05, 8), pedestalMat);
+    pedestal.position.set(0, -1.525, 0);
+    group.add(pedestal);
 
     const borderMat = new THREE.MeshToonMaterial({ color: 0xc7dde2, gradientMap: toonGradient });
     group.add(new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.0, 0.08), borderMat));
@@ -1057,30 +1225,42 @@ function buildGalleryRoom(){
 
     scene.add(group);
 
+    // real underwater flora between the frames — swaying kelp blades and a
+    // small coral cluster, no trees (nothing that needs air to grow)
     const decorAngle = angle + (Math.PI / N);
     const dx = Math.sin(decorAngle) * (ROOM_RADIUS - 0.55);
     const dz = Math.cos(decorAngle) * (ROOM_RADIUS - 0.55);
     const decorGroup = new THREE.Group();
     decorGroup.position.set(dx, 0, dz);
-    const pot = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.25,0.3,0.4,10),
-      new THREE.MeshToonMaterial({ color: 0x8a5a3c, gradientMap: toonGradient })
-    );
-    pot.position.y = 0.2;
-    decorGroup.add(pot);
-    const leaves = new THREE.Mesh(
-      new THREE.ConeGeometry(0.42, 0.95, 8),
-      new THREE.MeshToonMaterial({ color: DECOR_LEAF_COLORS[i % DECOR_LEAF_COLORS.length], gradientMap: toonGradient })
-    );
-    leaves.position.y = 0.86;
-    decorGroup.add(leaves);
+
+    const kelpColor = KELP_COLORS[i % KELP_COLORS.length];
+    for(let k=0;k<3;k++){
+      const h = 1.1 + Math.random()*0.9;
+      const bladeMat = new THREE.MeshToonMaterial({ color: kelpColor, gradientMap: toonGradient, side: THREE.DoubleSide });
+      const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.16, h), bladeMat);
+      blade.geometry.translate(0, h/2, 0); // pivot at the base so it sways like it's rooted
+      const pivot = new THREE.Group();
+      pivot.position.set((Math.random()-0.5)*0.4, 0, (Math.random()-0.5)*0.4);
+      pivot.rotation.y = Math.random()*Math.PI*2;
+      pivot.add(blade);
+      decorGroup.add(pivot);
+      kelpBlades.push({ obj: pivot, phase: Math.random()*Math.PI*2, speed: 0.7+Math.random()*0.5, amp: 0.12+Math.random()*0.08 });
+    }
+
+    for(let c=0;c<4;c++){
+      const coralMat = new THREE.MeshToonMaterial({ color: CORAL_COLORS[(i+c) % CORAL_COLORS.length], gradientMap: toonGradient });
+      const piece = new THREE.Mesh(new THREE.SphereGeometry(0.1+Math.random()*0.1, 6, 5), coralMat);
+      piece.position.set((Math.random()-0.5)*0.5, 0.08+Math.random()*0.18, (Math.random()-0.5)*0.5);
+      decorGroup.add(piece);
+    }
+
     scene.add(decorGroup);
 
     frameEntries.push({ group, decorGroup, art, hitMesh });
   });
 
   document.getElementById("galleryEmptyNote").textContent = hasArt
-    ? "" : "the frames are empty for now — add her drawings from the admin page and they'll appear on the walls.";
+    ? "" : "the frames are empty for now — add her drawings from the admin page and they'll appear on their pedestals.";
 }
 
 function setupGalleryControls(){
@@ -1103,7 +1283,7 @@ function setupGalleryControls(){
   let looking=false, lastX=0, lastY=0;
   viewport.addEventListener("pointerdown", e => {
     GalleryAudio.init();
-    if(e.target.closest("#joystick") || e.target.closest(".peek-btn") || e.target.closest("#muteBtn")) return;
+    if(e.target.closest("#joystick") || e.target.closest(".peek-btn") || e.target.closest("#muteBtn") || e.target.closest("#surfaceBtn")) return;
     viewport.focus();
     looking = true; lastX = e.clientX; lastY = e.clientY;
     try{ viewport.setPointerCapture(e.pointerId); }catch(err){}
@@ -1260,6 +1440,29 @@ document.getElementById("muteBtn").addEventListener("click", () => {
 });
 updateMuteButton();
 
+/* ---------------- immersive (fullscreen) mode ---------------- */
+function enterImmersive(){
+  const vp = document.getElementById("glViewport");
+  vp.classList.add("immersive");
+  document.body.style.overflow = "hidden";
+  requestAnimationFrame(resizeGL);
+  if(vp.requestFullscreen) vp.requestFullscreen().catch(() => {});
+}
+function exitImmersive(){
+  const vp = document.getElementById("glViewport");
+  vp.classList.remove("immersive");
+  document.body.style.overflow = "";
+  requestAnimationFrame(resizeGL);
+  if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+}
+document.getElementById("diveBtn").addEventListener("click", enterImmersive);
+document.getElementById("surfaceBtn").addEventListener("click", exitImmersive);
+document.addEventListener("fullscreenchange", () => {
+  // syncs the CSS state if she exits via the browser's own fullscreen control (Esc, swipe, etc.)
+  if(!document.fullscreenElement) exitImmersive();
+});
+document.addEventListener("keydown", e => { if(e.key === "Escape") exitImmersive(); });
+
 function haptic(pattern){
   if(navigator.vibrate) try{ navigator.vibrate(pattern); }catch(e){}
 }
@@ -1282,7 +1485,7 @@ function tick(t){
     camPos.addScaledVector(_forward, moveState.fwd * MOVE_SPEED * dt);
     camPos.addScaledVector(_right, moveState.strafe * MOVE_SPEED * dt);
     const dist = Math.hypot(camPos.x, camPos.z);
-    const maxDist = ROOM_RADIUS - WALL_MARGIN;
+    const maxDist = WORLD_RADIUS - WALL_MARGIN;
     if(dist > maxDist){ const s = maxDist/dist; camPos.x *= s; camPos.z *= s; }
     walkTime += dt;
     GalleryAudio.footstep();
@@ -1294,6 +1497,9 @@ function tick(t){
 
   updateFish(dt, t*0.001);
   updateBubbles(dt, t);
+  updateKelp(t);
+  updateSharks(dt, t*0.001);
+  updateJellyfish(dt, t*0.001);
   updatePeek();
   updatePresenceAvatars(dt);
   broadcastPresence(t);
