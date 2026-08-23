@@ -10,15 +10,16 @@
 
 <style>
 :root{
-  --bg:#fdf6f1; --bg2:#f7ebe2; --ink:#4a3c35; --ink-soft:#8a7468;
-  --rose:#e8879b; --rose-deep:#d1637a; --gold:#d9a441; --cream:#fffaf5;
-  --card:#ffffff; --line:rgba(74,60,53,0.12); --shadow:rgba(74,60,53,0.15);
+  /* Frutiger Aqua — deep-sea glass palette used across the whole site */
+  --bg:#e3f6fa; --bg2:#c9ecf2; --ink:#063a52; --ink-soft:#4c7c8c;
+  --rose:#17b6d4; --rose-deep:#0d84a3; --gold:#4fd8c4; --cream:#f2fbfd;
+  --card:#ffffff; --line:rgba(6,58,82,0.14); --shadow:rgba(6,58,82,0.2);
 }
 @media (prefers-color-scheme: dark){
   :root{
-    --bg:#241c1f; --bg2:#2c2226; --ink:#f3e7df; --ink-soft:#c9b6ab;
-    --rose:#f0a3b3; --rose-deep:#e8879b; --gold:#e6bb6b; --cream:#2f2428;
-    --card:#332729; --line:rgba(243,231,223,0.12); --shadow:rgba(0,0,0,0.4);
+    --bg:#05141c; --bg2:#0a2230; --ink:#eaf7fb; --ink-soft:#8fc4d4;
+    --rose:#29d6f0; --rose-deep:#17b6d4; --gold:#57f0c9; --cream:#0e2a38;
+    --card:#10303f; --line:rgba(234,247,251,0.12); --shadow:rgba(0,0,0,0.4);
   }
 }
 
@@ -569,7 +570,8 @@ let yaw = Math.PI, pitch = 0;    // start facing the first painting
 let moveState = { fwd: 0, strafe: 0 };
 let nearestArt = null;
 let glReady = false;
-let petals = [];                 // falling cherry-blossom sprites
+let fishSchool = [];             // swimming toon-fish groups
+let bubbles = [];                // rising bubble sprites
 let walkTime = 0;                // accumulates while moving, drives head-bob
 let bobAmount = 0;                // eases in/out so stopping doesn't snap
 let hasEnteredGallery = false;
@@ -599,7 +601,7 @@ const GalleryAudio = {
     const noise = ctx.createBufferSource();
     noise.buffer = noiseBuf; noise.loop = true;
     const filter = ctx.createBiquadFilter();
-    filter.type = "lowpass"; filter.frequency.value = 340;
+    filter.type = "lowpass"; filter.frequency.value = 220; // muffled, underwater
     const gain = ctx.createGain();
     gain.gain.value = 0.025;
     noise.connect(filter); filter.connect(gain); gain.connect(this.master);
@@ -633,7 +635,7 @@ const GalleryAudio = {
     const src = ctx.createBufferSource();
     src.buffer = buf;
     const filter = ctx.createBiquadFilter();
-    filter.type = "lowpass"; filter.frequency.value = 700;
+    filter.type = "lowpass"; filter.frequency.value = 420; // softened footfall, like walking underwater
     const g = ctx.createGain();
     g.gain.value = 0.11;
     src.connect(filter); filter.connect(g); g.connect(this.master);
@@ -697,55 +699,106 @@ function makeFloorTexture(){
   return tex;
 }
 
-function makePetalTexture(){
+/* a school of low-poly toon fish swimming lazy orbits around the room,
+   plus bubbles drifting up from the floor — the room reads as underwater */
+const FISH_COLORS = [0xff9d5c, 0xffe066, 0x5cd6e8, 0xc7f2ea, 0x4fb3d9, 0xff8fb3];
+
+function makeFish(color){
+  const group = new THREE.Group();
+  const mat = new THREE.MeshToonMaterial({ color, gradientMap: toonGradient });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), mat);
+  body.scale.set(0.65, 0.85, 1.7); // elongated along local -Z (nose) / +Z (tail end)
+  group.add(body);
+  const tailMat = new THREE.MeshToonMaterial({ color, gradientMap: toonGradient });
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.22, 3), tailMat);
+  tail.rotation.x = Math.PI/2;
+  tail.rotation.z = Math.PI/2;
+  tail.position.set(0, 0, 0.3);
+  group.add(tail);
+  return group;
+}
+
+function initFish(){
+  const centerSpread = ROOM_RADIUS * 0.55;
+  for(let i=0;i<22;i++){
+    const fish = makeFish(FISH_COLORS[i % FISH_COLORS.length]);
+    fish.userData = {
+      cx: (Math.random()-0.5) * centerSpread,
+      cz: (Math.random()-0.5) * centerSpread,
+      radius: 1.2 + Math.random()*2.6,
+      angSpeed: (Math.random() < 0.5 ? -1 : 1) * (0.25 + Math.random()*0.35),
+      angPhase: Math.random()*Math.PI*2,
+      height: 0.8 + Math.random()*3.2,
+      bobAmp: 0.15 + Math.random()*0.2,
+      bobSpeed: 0.8 + Math.random()*0.6,
+      bobPhase: Math.random()*Math.PI*2,
+      scale: 0.7 + Math.random()*0.7
+    };
+    fish.scale.setScalar(fish.userData.scale);
+    scene.add(fish);
+    fishSchool.push(fish);
+  }
+}
+function updateFish(dt, tSec){
+  fishSchool.forEach(fish => {
+    const u = fish.userData;
+    const ang = u.angPhase + tSec * u.angSpeed;
+    const y = u.height + Math.sin(tSec*u.bobSpeed + u.bobPhase) * u.bobAmp;
+    fish.position.set(u.cx + Math.sin(ang)*u.radius, y, u.cz + Math.cos(ang)*u.radius);
+
+    const nextAng = ang + u.angSpeed*0.06;
+    const nextY = u.height + Math.sin((tSec+0.06)*u.bobSpeed + u.bobPhase) * u.bobAmp;
+    const lookTarget = new THREE.Vector3(u.cx + Math.sin(nextAng)*u.radius, nextY, u.cz + Math.cos(nextAng)*u.radius);
+    fish.lookAt(lookTarget);
+  });
+}
+
+function makeBubbleTexture(){
   const canvas = document.createElement("canvas");
   canvas.width = 32; canvas.height = 32;
   const ctx = canvas.getContext("2d");
-  ctx.translate(16,16);
-  ctx.fillStyle = "#f3b8c9";
-  ctx.beginPath();
-  ctx.moveTo(0,-13);
-  ctx.quadraticCurveTo(11,-8, 0,13);
-  ctx.quadraticCurveTo(-11,-8, 0,-13);
-  ctx.fill();
-  ctx.fillStyle = "rgba(255,255,255,0.35)";
-  ctx.beginPath(); ctx.ellipse(-2,-3,3,6,0.4,0,Math.PI*2); ctx.fill();
+  const grad = ctx.createRadialGradient(12,10,1, 16,16,15);
+  grad.addColorStop(0, "rgba(255,255,255,0.9)");
+  grad.addColorStop(0.5, "rgba(210,250,255,0.35)");
+  grad.addColorStop(1, "rgba(210,250,255,0.05)");
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(16,16,15,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.6)";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(16,16,14,0,Math.PI*2); ctx.stroke();
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
-function initPetals(){
-  const tex = makePetalTexture();
+function initBubbles(){
+  const tex = makeBubbleTexture();
   const mat = new THREE.SpriteMaterial({ map: tex, transparent:true, depthWrite:false });
-  for(let i=0;i<36;i++){
+  for(let i=0;i<28;i++){
     const sprite = new THREE.Sprite(mat.clone());
-    const scale = 0.14 + Math.random()*0.12;
+    const scale = 0.06 + Math.random()*0.12;
     sprite.scale.set(scale, scale, 1);
-    resetPetal(sprite, true);
-    sprite.userData.fallSpeed = 0.28 + Math.random()*0.3;
-    sprite.userData.swaySpeed = 0.6 + Math.random()*0.8;
-    sprite.userData.swayAmp = 0.4 + Math.random()*0.5;
+    resetBubble(sprite, true);
+    sprite.userData.riseSpeed = 0.25 + Math.random()*0.35;
+    sprite.userData.swaySpeed = 0.7 + Math.random()*0.9;
+    sprite.userData.swayAmp = 0.12 + Math.random()*0.2;
     sprite.userData.swayPhase = Math.random()*Math.PI*2;
-    sprite.userData.spin = (Math.random()-0.5)*1.5;
     scene.add(sprite);
-    petals.push(sprite);
+    bubbles.push(sprite);
   }
 }
-function resetPetal(sprite, initial){
+function resetBubble(sprite, initial){
   const r = Math.random()*(ROOM_RADIUS-0.5);
   const a = Math.random()*Math.PI*2;
-  sprite.position.set(Math.sin(a)*r, initial ? Math.random()*ROOM_HEIGHT : ROOM_HEIGHT + Math.random()*1.5, Math.cos(a)*r);
+  sprite.position.set(Math.sin(a)*r, initial ? Math.random()*ROOM_HEIGHT : 0.05, Math.cos(a)*r);
   sprite.userData.baseX = sprite.position.x;
-  sprite.userData.baseZ = sprite.position.z;
 }
-function updatePetals(dt, t){
-  petals.forEach(p => {
-    p.position.y -= p.userData.fallSpeed * dt;
-    const sway = Math.sin(t*0.001*p.userData.swaySpeed + p.userData.swayPhase) * p.userData.swayAmp;
-    p.position.x = p.userData.baseX + sway;
-    p.material.rotation += p.userData.spin * dt;
-    if(p.position.y < 0.05) resetPetal(p, false);
+function updateBubbles(dt, t){
+  bubbles.forEach(b => {
+    b.position.y += b.userData.riseSpeed * dt;
+    const sway = Math.sin(t*0.001*b.userData.swaySpeed + b.userData.swayPhase) * b.userData.swayAmp;
+    b.position.x = b.userData.baseX + sway;
+    if(b.position.y > ROOM_HEIGHT - 0.1) resetBubble(b, false);
   });
 }
 
@@ -782,7 +835,7 @@ function initGL(){
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0xcdeef8);
-  scene.fog = new THREE.Fog(0xcdeef8, 9, 20);
+  scene.fog = new THREE.Fog(0xcdeef8, 6, 15); // closer, hazier — reads as underwater visibility
 
   camera = new THREE.PerspectiveCamera(62, 1, 0.1, 100);
   raycaster = new THREE.Raycaster();
@@ -817,7 +870,8 @@ function initGL(){
   scene.add(ceil);
 
   camera.position.copy(camPos);
-  initPetals();
+  initFish();
+  initBubbles();
 
   resizeGL();
   window.addEventListener("resize", resizeGL);
@@ -1116,7 +1170,8 @@ function tick(t){
   const bobX = Math.sin(walkTime*4.5) * 0.02 * bobAmount;
   camera.position.set(camPos.x + bobX, EYE_HEIGHT + bobY, camPos.z);
 
-  updatePetals(dt, t);
+  updateFish(dt, t*0.001);
+  updateBubbles(dt, t);
   updatePeek();
   updatePresenceAvatars(dt);
   broadcastPresence(t);
