@@ -79,54 +79,79 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 .qtile .emo{ font-size:1.8rem; display:block; margin-bottom:6px; }
 .qtile span.lbl{ font-weight:700; font-size:0.85rem; }
 
-/* ---------- Gallery: walk-through corridor ---------- */
+/* ---------- Gallery: museum rotunda (walk around, one painting at a time) ---------- */
 .gallery-shell{
   border-radius:20px; overflow:hidden; border:1px solid var(--line);
   box-shadow:0 10px 30px var(--shadow); background:#000; position:relative;
 }
-.corridor-viewport{
+.rotunda-viewport{
   width:100%; aspect-ratio:16/10; position:relative; overflow:hidden;
-  perspective:600px; perspective-origin:50% 45%;
-  background:linear-gradient(var(--corridor-ceil),var(--corridor-ceil) 48%,var(--corridor-floor) 48%,var(--corridor-floor));
+  perspective:750px; perspective-origin:50% 42%;
+  background:
+    radial-gradient(ellipse at 50% 0%, #fff6e6 0%, var(--corridor-ceil) 60%, var(--corridor-ceil) 100%),
+    linear-gradient(var(--corridor-ceil),var(--corridor-ceil) 46%,var(--corridor-floor) 46%,var(--corridor-floor));
   touch-action:none; cursor:grab;
 }
-.corridor-viewport:active{ cursor:grabbing; }
-#world{ position:absolute; inset:0; transform-style:preserve-3d; transform:translateZ(0); }
-.wall-seg{
-  position:absolute; width:100%; height:100%; transform-style:preserve-3d;
-  pointer-events:none;
+.rotunda-viewport:active{ cursor:grabbing; }
+.rotunda-viewport:focus{ outline:2px solid var(--gold); outline-offset:-2px; }
+#ring{
+  position:absolute; inset:0; transform-style:preserve-3d;
+  transition:transform .45s cubic-bezier(.2,.8,.2,1);
 }
-.wpanel{
-  position:absolute; width:220px; height:100%; top:0;
-  background:var(--corridor-wall); pointer-events:none;
-  border-top:2px solid rgba(0,0,0,0.15); border-bottom:2px solid rgba(0,0,0,0.15);
+#ring.dragging{ transition:none; }
+
+.panel{
+  position:absolute; left:50%; top:16%; width:220px; height:66%;
+  margin-left:-110px; transform-style:preserve-3d; pointer-events:none;
 }
-.wpanel.left{ left:0; transform-origin:left center; transform:rotateY(90deg); }
-.wpanel.right{ right:0; transform-origin:right center; transform:rotateY(-90deg); }
+.panel-wall{
+  position:absolute; inset:0; background:var(--corridor-wall);
+  border-top:3px solid rgba(0,0,0,0.12); border-bottom:3px solid rgba(0,0,0,0.18);
+  box-shadow:inset 0 0 40px rgba(0,0,0,0.15);
+}
+.panel-spotlight{
+  position:absolute; top:-22%; left:50%; width:200%; height:70%;
+  transform:translateX(-50%);
+  background:radial-gradient(ellipse at 50% 0%, rgba(255,244,214,0.55), transparent 68%);
+}
+.panel-plaque{
+  position:absolute; bottom:9%; left:50%; transform:translateX(-50%);
+  background:rgba(20,14,12,0.6); color:#f7ecd8; font-family:'Caveat',cursive;
+  font-size:1rem; padding:4px 14px; border-radius:6px; white-space:nowrap;
+  max-width:92%; overflow:hidden; text-overflow:ellipsis;
+}
+.decor-plant{
+  position:absolute; bottom:4%; left:50%; transform:translateX(-50%);
+  font-size:2.4rem; filter:drop-shadow(0 6px 8px rgba(0,0,0,0.4));
+}
+.decor-pillar{
+  position:absolute; bottom:0; left:50%; width:24%; height:72%; transform:translateX(-50%);
+  background:linear-gradient(180deg, rgba(255,255,255,0.14), rgba(0,0,0,0.18));
+  border-left:2px solid rgba(255,255,255,0.18); border-right:2px solid rgba(0,0,0,0.22);
+  border-radius:4px;
+}
 
 .frame{
-  position:absolute; width:130px; height:130px; top:36%; z-index:3;
-  background:#2b2320; padding:8px; border-radius:4px;
-  box-shadow:0 4px 14px rgba(0,0,0,0.5);
-  cursor:pointer; transition:filter .2s, box-shadow .2s;
-  filter:brightness(0.55);
-  pointer-events:auto;
+  position:absolute; width:62%; aspect-ratio:1/1; left:50%; top:20%;
+  transform:translateX(-50%); z-index:3;
+  background:#2b2320; padding:5%; border-radius:4px;
+  box-shadow:0 8px 22px rgba(0,0,0,0.55);
+  filter:brightness(0.6); transition:filter .3s;
 }
-.frame.near{ filter:brightness(1); box-shadow:0 0 0 3px var(--gold),0 6px 22px rgba(0,0,0,0.6); }
+.panel.front .frame{ filter:brightness(1.05); box-shadow:0 0 0 3px var(--gold),0 10px 30px rgba(0,0,0,0.6); }
 .frame img{ width:100%; height:100%; object-fit:cover; display:block; border-radius:2px; background:#fff; }
 .frame .empty-art{
   width:100%; height:100%; display:flex; align-items:center; justify-content:center;
-  background:#f2e7db; color:#a8917f; font-size:0.7rem; text-align:center; padding:6px; border-radius:2px;
+  background:#f2e7db; color:#a8917f; font-size:0.7rem; text-align:center; padding:10%; border-radius:2px;
   font-family:'Quicksand',sans-serif;
 }
 
-.corridor-viewport:focus{ outline:2px solid var(--gold); outline-offset:-2px; }
-.corridor-hint{
+.rotunda-hint{
   position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
   background:rgba(0,0,0,0.55); color:#fff; padding:6px 14px; border-radius:999px;
   font-size:0.75rem; pointer-events:none; opacity:.9;
 }
-.corridor-controls{ position:absolute; bottom:14px; right:14px; display:flex; gap:8px; }
+.rotunda-controls{ position:absolute; bottom:14px; right:14px; display:flex; gap:8px; }
 .peek-btn{
   position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
   background:var(--gold); color:#2b2320; border:none; padding:10px 20px;
@@ -278,15 +303,15 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 
   <!-- GALLERY -->
   <section class="page" id="page-gallery">
-    <h2 class="script" style="margin:0 0 10px;">walk through it</h2>
+    <h2 class="script" style="margin:0 0 10px;">walk around it</h2>
     <div class="gallery-shell">
-      <div class="corridor-viewport" id="corridorView" tabindex="0">
-        <div id="world"></div>
-        <div class="corridor-hint">tap top/bottom, drag, arrow keys, or WASD to walk</div>
+      <div class="rotunda-viewport" id="rotundaView" tabindex="0">
+        <div id="ring"></div>
+        <div class="rotunda-hint">swipe left/right to turn</div>
         <button class="peek-btn" id="peekBtn" hidden>view this painting ✦</button>
-        <div class="corridor-controls">
-          <button class="ctrl-btn" id="btnBack" aria-label="walk backward">↓</button>
-          <button class="ctrl-btn" id="btnFwd" aria-label="walk forward">↑</button>
+        <div class="rotunda-controls">
+          <button class="ctrl-btn" id="btnLeft" aria-label="turn left">‹</button>
+          <button class="ctrl-btn" id="btnRight" aria-label="turn right">›</button>
         </div>
       </div>
     </div>
@@ -493,136 +518,144 @@ function renderCounter(){
 }
 setInterval(renderCounter, 60000);
 
-/* ================= gallery: walk-through corridor ================= */
-const SEG_LEN = 400;
-const N_SEGMENTS = 6;
-let frames = [];
+/* ================= gallery: museum rotunda ================= */
+const RADIUS = 480;      // distance of the wall ring from the viewer
+const DECOR_ICONS = ["🪴","🕯️","🏺","🖼️"];
+let frames = [];         // {el, art} — one entry per ARTWORK (decor panels aren't tracked here)
+let ringN = 1;           // number of artworks (>=1, placeholders count if gallery is empty)
+let bigStep = 360;        // degrees between consecutive artworks
+let currentIndex = 0;
+let heading = 0;          // current ring rotation in degrees
 
-function buildCorridor(){
-  const world = document.getElementById("world");
-  world.innerHTML = "";
+function layoutPanel(el, slot, slotStep){
+  el.style.transform = `rotateY(${slot*slotStep}deg) translateZ(${RADIUS}px)`;
+}
+
+function buildRotunda(){
+  const ring = document.getElementById("ring");
+  ring.innerHTML = "";
   frames = [];
-  const arts = STATE.gallery;
-  let artIdx = 0;
 
-  for(let i=0;i<N_SEGMENTS;i++){
-    const seg = document.createElement("div");
-    seg.className = "wall-seg";
-    seg.style.transform = `translateZ(${-i*SEG_LEN}px)`;
+  const hasArt = STATE.gallery.length > 0;
+  const arts = hasArt ? STATE.gallery : [null, null, null];
+  ringN = arts.length;
+  bigStep = 360 / ringN;
+  const slotStep = bigStep / 2; // half-step: artwork, decor, artwork, decor...
 
-    ["left","right"].forEach(side => {
-      const panel = document.createElement("div");
-      panel.className = "wpanel " + side;
-      panel.style.height = SEG_LEN + "px";
-      panel.style.top = "-" + (SEG_LEN/2 - 100) + "px";
+  arts.forEach((art, i) => {
+    const panel = document.createElement("div");
+    panel.className = "panel";
+    layoutPanel(panel, i*2, slotStep);
+    panel.innerHTML = `<div class="panel-wall"></div><div class="panel-spotlight"></div>`;
 
-      const art = arts[artIdx];
-      const frame = document.createElement("div");
-      frame.className = "frame";
-      frame.style.left = "50%";
-      frame.style.marginLeft = "-65px";
-      frame.style.top = "40%";
-      frame.dataset.segIndex = i;
+    const frame = document.createElement("div");
+    frame.className = "frame";
+    frame.innerHTML = art
+      ? `<img src="${art.img}" alt="${(art.caption||"").replace(/"/g,"&quot;")}">`
+      : `<div class="empty-art">waiting for<br>your next<br>masterpiece</div>`;
+    panel.appendChild(frame);
 
-      if(art){
-        const img = document.createElement("img");
-        img.src = art.img; img.alt = art.caption || "";
-        frame.appendChild(img);
-      } else {
-        const empty = document.createElement("div");
-        empty.className = "empty-art";
-        empty.textContent = "waiting for\nyour next\nmasterpiece";
-        frame.appendChild(empty);
-      }
-      panel.appendChild(frame);
-      seg.appendChild(panel);
-      frames.push({ el: frame, art, segZ: i*SEG_LEN });
-      artIdx++;
-    });
-    world.appendChild(seg);
-  }
+    if(art && art.caption){
+      const plaque = document.createElement("div");
+      plaque.className = "panel-plaque";
+      plaque.textContent = art.caption;
+      panel.appendChild(plaque);
+    }
+    ring.appendChild(panel);
+    frames.push({ el: panel, art });
 
-  document.getElementById("galleryEmptyNote").textContent =
-    arts.length ? "" : "the frames are empty for now — add her drawings from the admin page and they'll appear on the walls.";
-}
-
-let playerZ = 0;
-const MAX_Z = (N_SEGMENTS-1) * SEG_LEN;
-let nearestArt = null;
-function updateWorld(){
-  document.getElementById("world").style.transform = `translateZ(${-playerZ}px)`;
-  let closest = null, closestDist = Infinity;
-  frames.forEach(f => {
-    const dist = Math.abs(f.segZ - playerZ);
-    f.el.classList.toggle("near", dist < SEG_LEN*0.7);
-    if(f.art && dist < closestDist){ closestDist = dist; closest = f.art; }
+    const decor = document.createElement("div");
+    decor.className = "panel decor";
+    layoutPanel(decor, i*2+1, slotStep);
+    decor.innerHTML = `<div class="panel-wall"></div><div class="decor-pillar"></div><div class="decor-plant">${DECOR_ICONS[i % DECOR_ICONS.length]}</div>`;
+    ring.appendChild(decor);
   });
+
+  document.getElementById("galleryEmptyNote").textContent = hasArt
+    ? "" : "the frames are empty for now — add her drawings from the admin page and they'll appear on the walls.";
+
+  currentIndex = Math.min(currentIndex, ringN-1);
+  goToIndex(currentIndex, true);
+}
+
+function applyHeadingLive(h){
+  document.getElementById("ring").style.transform = `rotateY(${h}deg)`;
+}
+
+function goToIndex(i, skipAnim){
+  currentIndex = ((i % ringN) + ringN) % ringN;
+  heading = -currentIndex * bigStep;
+  const ring = document.getElementById("ring");
+  if(skipAnim) ring.classList.add("dragging");
+  applyHeadingLive(heading);
+  if(skipAnim) requestAnimationFrame(() => ring.classList.remove("dragging"));
+
+  frames.forEach((f,i2) => f.el.classList.toggle("front", i2 === currentIndex));
+  const front = frames[currentIndex];
   const peekBtn = document.getElementById("peekBtn");
-  if(closest && closestDist < SEG_LEN*0.7){ nearestArt = closest; peekBtn.hidden = false; }
-  else { nearestArt = null; peekBtn.hidden = true; }
+  peekBtn.hidden = !(front && front.art);
 }
-document.getElementById("peekBtn").addEventListener("click", () => { if(nearestArt) openLightbox(nearestArt); });
-function moveBy(delta){
-  playerZ = Math.min(Math.max(playerZ + delta, 0), MAX_Z);
-  updateWorld();
-}
+document.getElementById("peekBtn").addEventListener("click", () => {
+  const front = frames[currentIndex];
+  if(front && front.art) openLightbox(front.art);
+});
 
-const view = document.getElementById("corridorView");
-
-function holdToWalk(el, speed){
-  if(!el) return;
-  let raf = null;
-  function loop(){ moveBy(speed); raf = requestAnimationFrame(loop); }
-  function start(e){ e.preventDefault(); view.focus(); if(raf) return; loop(); }
-  function stop(){ if(raf){ cancelAnimationFrame(raf); raf = null; } }
-  el.addEventListener("pointerdown", start);
-  el.addEventListener("pointerup", stop);
-  el.addEventListener("pointerleave", stop);
-  el.addEventListener("pointercancel", stop);
-}
-holdToWalk(document.getElementById("btnFwd"), 4.5);
-holdToWalk(document.getElementById("btnBack"), -4.5);
+const view = document.getElementById("rotundaView");
+document.getElementById("btnLeft").addEventListener("click", () => goToIndex(currentIndex - 1));
+document.getElementById("btnRight").addEventListener("click", () => goToIndex(currentIndex + 1));
 
 view.addEventListener("click", () => view.focus());
-view.addEventListener("keydown", handleWalkKey);
+view.addEventListener("keydown", handleTurnKey);
 document.addEventListener("keydown", e => {
   if(!document.getElementById("page-gallery").classList.contains("active")) return;
   if(document.activeElement === view) return;
-  handleWalkKey(e);
+  handleTurnKey(e);
 });
-function handleWalkKey(e){
+function handleTurnKey(e){
   if(!document.getElementById("page-gallery").classList.contains("active")) return;
-  if(["ArrowUp","w","W"].includes(e.key)){ e.preventDefault(); moveBy(24); }
-  if(["ArrowDown","s","S"].includes(e.key)){ e.preventDefault(); moveBy(-24); }
+  if(["ArrowLeft","a","A"].includes(e.key)){ e.preventDefault(); goToIndex(currentIndex - 1); }
+  if(["ArrowRight","d","D"].includes(e.key)){ e.preventDefault(); goToIndex(currentIndex + 1); }
 }
 
-let dragging=false, dragStartY=0, dragStartZ=0, dragMoved=false;
+/* swipe/drag to turn — mirrors iOS photo-swipe: dragging left brings the
+   next painting to front, exactly like swiping through a Photos album.
+   A quick tap (no real drag) on the left/right half steps one painting
+   that direction, for precision on desktop or a very short swipe. */
+const DRAG_PX_PER_STEP = 200;
+let dragging=false, dragStartX=0, dragStartHeading=0, dragMoved=false;
+const ring = document.getElementById("ring");
+
 view.addEventListener("pointerdown", e => {
-  if(e.target.closest(".frame") || e.target.closest(".ctrl-btn") || e.target.closest("#peekBtn")) return;
+  if(e.target.closest(".ctrl-btn") || e.target.closest("#peekBtn")) return;
   view.focus();
-  dragging=true; dragMoved=false; dragStartY=e.clientY; dragStartZ=playerZ;
+  dragging=true; dragMoved=false; dragStartX=e.clientX; dragStartHeading=heading;
+  ring.classList.add("dragging");
   try{ view.setPointerCapture(e.pointerId); }catch(err){}
 });
 view.addEventListener("pointermove", e => {
   if(!dragging) return;
-  const dy=e.clientY-dragStartY;
-  if(Math.abs(dy) > 6) dragMoved = true;
-  playerZ = Math.min(Math.max(dragStartZ - dy*1.2, 0), MAX_Z);
-  updateWorld();
+  const dx=e.clientX-dragStartX;
+  if(Math.abs(dx) > 6) dragMoved = true;
+  applyHeadingLive(dragStartHeading + (dx/DRAG_PX_PER_STEP)*bigStep);
 });
 view.addEventListener("pointerup", e => {
-  if(dragging && !dragMoved){
+  ring.classList.remove("dragging");
+  if(dragging && dragMoved){
+    const dx=e.clientX-dragStartX;
+    const liveHeading = dragStartHeading + (dx/DRAG_PX_PER_STEP)*bigStep;
+    goToIndex(Math.round(-liveHeading/bigStep));
+  } else if(dragging){
     const r = view.getBoundingClientRect();
-    const relY = (e.clientY - r.top) / r.height;
-    const dir = relY < 0.5 ? 1 : -1;
-    let steps = 0;
-    function tapLoop(){ moveBy(dir*4.5); steps++; if(steps<26) requestAnimationFrame(tapLoop); }
-    tapLoop();
+    const relX = (e.clientX - r.left) / r.width;
+    goToIndex(currentIndex + (relX < 0.5 ? -1 : 1));
   }
   dragging = false;
 });
-window.addEventListener("pointerup", () => { dragging = false; });
-view.addEventListener("wheel", e => { moveBy(-e.deltaY*0.3); }, {passive:true});
+window.addEventListener("pointerup", () => { dragging = false; ring.classList.remove("dragging"); });
+view.addEventListener("wheel", e => {
+  if(Math.abs(e.deltaX) < 12) return;
+  goToIndex(currentIndex + (e.deltaX > 0 ? 1 : -1));
+}, {passive:true});
 
 function openLightbox(art){
   document.getElementById("lbImg").src = art.img;
@@ -828,6 +861,32 @@ function fileToDataURL(file){
   });
 }
 
+/* Real photos are often several MB — way past what fits comfortably in
+   localStorage (~5-10MB total) or a single Firestore document (1MB). Resize
+   and re-compress images client-side before they ever get stored so a
+   normal phone photo becomes ~50-150KB instead. */
+function imageFileToCompressedDataURL(file, maxDim=1000, quality=0.75){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let { width, height } = img;
+        if(width > height && width > maxDim){ height = Math.round(height * maxDim/width); width = maxDim; }
+        else if(height > maxDim){ width = Math.round(width * maxDim/height); height = maxDim; }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function renderAdminLists(){
   document.getElementById("galleryAdminList").innerHTML = STATE.gallery.map((g,i) =>
     `<div class="row"><span>${(g.caption||"untitled").slice(0,40)}</span><button class="del" data-kind="gallery" data-i="${i}">remove</button></div>`
@@ -856,9 +915,17 @@ async function publishState(successMsg){
     await Store.saveContent(STATE);
     status.textContent = successMsg + (FIREBASE_ENABLED ? "" : " (saved to this browser only — add your Firebase keys to firebase-config.js to sync across devices, see README.md)");
     status.className = "status-msg ok";
+    return true;
   }catch(err){
-    status.textContent = "couldn't save — check your Firebase setup in README.md.";
+    if(err && (err.name === "QuotaExceededError" || err.code === 22)){
+      status.textContent = "that didn't fit in this browser's storage, so it was NOT saved — try a smaller file, or remove something first. (Connecting Firebase in README.md fixes this properly.)";
+    } else if(err && err.code === "resource-exhausted"){
+      status.textContent = "that's too large for a single cloud document (1MB limit) — it was NOT saved. Try a smaller/more compressed file.";
+    } else {
+      status.textContent = "couldn't save, so it was NOT added — check your Firebase setup in README.md.";
+    }
     status.className = "status-msg err";
+    return false;
   }
 }
 
@@ -866,11 +933,12 @@ document.getElementById("addGalleryBtn").addEventListener("click", async () => {
   const fileInput = document.getElementById("galImgInput");
   const cap = document.getElementById("galCapInput").value.trim();
   if(!fileInput.files[0]){ document.getElementById("adminStatus").textContent="pick an image first."; return; }
-  const dataUrl = await fileToDataURL(fileInput.files[0]);
+  const dataUrl = await imageFileToCompressedDataURL(fileInput.files[0]);
   STATE.gallery.push({ img: dataUrl, caption: cap });
   renderAdminLists();
-  buildCorridor(); updateWorld();
-  await publishState("added to the gallery.");
+  buildRotunda();
+  const ok = await publishState("added to the gallery.");
+  if(!ok){ STATE.gallery.pop(); renderAdminLists(); buildRotunda(); }
 });
 
 document.getElementById("addNoteBtn").addEventListener("click", async () => {
@@ -880,7 +948,8 @@ document.getElementById("addNoteBtn").addEventListener("click", async () => {
   document.getElementById("noteTextInput").value = "";
   renderAdminLists();
   buildNotes();
-  await publishState("note added.");
+  const ok = await publishState("note added.");
+  if(!ok){ STATE.notes.pop(); renderAdminLists(); buildNotes(); }
 });
 
 document.getElementById("addRewardBtn").addEventListener("click", async () => {
@@ -890,12 +959,15 @@ document.getElementById("addRewardBtn").addEventListener("click", async () => {
   let content = "";
   if(type !== "text"){
     if(!fileInput.files[0]){ document.getElementById("adminStatus").textContent="pick a file first."; return; }
-    content = await fileToDataURL(fileInput.files[0]);
+    content = type === "image"
+      ? await imageFileToCompressedDataURL(fileInput.files[0])
+      : await fileToDataURL(fileInput.files[0]);
   }
   STATE.rewards.push({ type, content, caption: cap });
   document.getElementById("rewardCapInput").value = "";
   renderAdminLists();
-  await publishState("reward queued.");
+  const ok = await publishState("reward queued.");
+  if(!ok){ STATE.rewards.pop(); renderAdminLists(); }
 });
 
 /* ================= boot ================= */
@@ -912,7 +984,7 @@ document.getElementById("addRewardBtn").addEventListener("click", async () => {
   claimed = savedProgress.claimed || 0;
 
   renderCounter();
-  buildCorridor(); updateWorld();
+  buildRotunda();
   buildNotes();
   renderStreak();
   buildRoutines();
