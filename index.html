@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meine Bao's World</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#fdf6f1; --bg2:#f7ebe2; --ink:#4a3c35; --ink-soft:#8a7468;
+  --rose:#e8879b; --rose-deep:#d1637a; --gold:#d9a441; --cream:#fffaf5;
+  --card:#ffffff; --line:rgba(74,60,53,0.12); --shadow:rgba(74,60,53,0.15);
+  --corridor-wall:#efe0d3; --corridor-floor:#c9a789; --corridor-ceil:#e9d6c4;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#241c1f; --bg2:#2c2226; --ink:#f3e7df; --ink-soft:#c9b6ab;
+    --rose:#f0a3b3; --rose-deep:#e8879b; --gold:#e6bb6b; --cream:#2f2428;
+    --card:#332729; --line:rgba(243,231,223,0.12); --shadow:rgba(0,0,0,0.4);
+    --corridor-wall:#3a2c2f; --corridor-floor:#241a1a; --corridor-ceil:#2c2022;
+  }
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:'Quicksand',sans-serif;
+  min-height:100vh;
+}
+h1,h2,h3,.script{ font-family:'Caveat',cursive; }
+.wrap{ max-width:900px; margin:0 auto; padding:0 0 90px; }
+
+/* ---------- Header / nav ---------- */
+header.top{ padding:22px 20px 10px; text-align:center; }
+header.top h1{ font-size:2.6rem; margin:0; color:var(--rose-deep); }
+header.top p{ margin:4px 0 0; color:var(--ink-soft); font-size:0.95rem; }
+
+nav.tabs{
+  display:flex; gap:6px; justify-content:center; flex-wrap:wrap;
+  padding:14px 16px; position:sticky; top:0; z-index:50;
+  background:var(--bg); border-bottom:1px solid var(--line);
+}
+nav.tabs button{
+  border:1px solid var(--line); background:var(--card); color:var(--ink);
+  padding:8px 16px; border-radius:999px; font-family:'Quicksand',sans-serif;
+  font-weight:600; font-size:0.85rem; cursor:pointer; transition:.15s;
+}
+nav.tabs button.active{ background:var(--rose); color:#fff; border-color:var(--rose); }
+nav.tabs button:hover{ transform:translateY(-1px); }
+
+.page{ display:none; padding:18px 20px; animation:fade .25s ease; }
+.page.active{ display:block; }
+@keyframes fade{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
+
+/* ---------- Home ---------- */
+.counter-card{
+  background:linear-gradient(160deg,var(--card),var(--bg2));
+  border:1px solid var(--line); border-radius:24px; padding:36px 24px;
+  text-align:center; box-shadow:0 10px 30px var(--shadow); margin-bottom:20px;
+}
+.counter-num{ font-size:5rem; font-family:'Caveat',cursive; color:var(--rose-deep); line-height:1; }
+.counter-label{ color:var(--ink-soft); font-size:1rem; margin-top:4px; }
+.since{ margin-top:10px; font-size:0.85rem; color:var(--ink-soft); }
+.home-msg{
+  background:var(--card); border:1px solid var(--line); border-radius:18px;
+  padding:20px; line-height:1.6; box-shadow:0 6px 16px var(--shadow);
+}
+.home-msg .script{ font-size:1.5rem; color:var(--rose-deep); display:block; margin-bottom:6px; }
+.quicklinks{ display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin-top:18px; }
+.qtile{
+  background:var(--card); border:1px solid var(--line); border-radius:16px;
+  padding:18px 10px; text-align:center; cursor:pointer; box-shadow:0 6px 14px var(--shadow);
+  transition:.15s;
+}
+.qtile:hover{ transform:translateY(-3px); }
+.qtile .emo{ font-size:1.8rem; display:block; margin-bottom:6px; }
+.qtile span.lbl{ font-weight:700; font-size:0.85rem; }
+
+/* ---------- Gallery: walk-through corridor ---------- */
+.gallery-shell{
+  border-radius:20px; overflow:hidden; border:1px solid var(--line);
+  box-shadow:0 10px 30px var(--shadow); background:#000; position:relative;
+}
+.corridor-viewport{
+  width:100%; aspect-ratio:16/10; position:relative; overflow:hidden;
+  perspective:600px; perspective-origin:50% 45%;
+  background:linear-gradient(var(--corridor-ceil),var(--corridor-ceil) 48%,var(--corridor-floor) 48%,var(--corridor-floor));
+  touch-action:none; cursor:grab;
+}
+.corridor-viewport:active{ cursor:grabbing; }
+#world{ position:absolute; inset:0; transform-style:preserve-3d; transform:translateZ(0); }
+.wall-seg{
+  position:absolute; width:100%; height:100%; transform-style:preserve-3d;
+  pointer-events:none;
+}
+.wpanel{
+  position:absolute; width:220px; height:100%; top:0;
+  background:var(--corridor-wall); pointer-events:none;
+  border-top:2px solid rgba(0,0,0,0.15); border-bottom:2px solid rgba(0,0,0,0.15);
+}
+.wpanel.left{ left:0; transform-origin:left center; transform:rotateY(90deg); }
+.wpanel.right{ right:0; transform-origin:right center; transform:rotateY(-90deg); }
+
+.frame{
+  position:absolute; width:130px; height:130px; top:36%; z-index:3;
+  background:#2b2320; padding:8px; border-radius:4px;
+  box-shadow:0 4px 14px rgba(0,0,0,0.5);
+  cursor:pointer; transition:filter .2s, box-shadow .2s;
+  filter:brightness(0.55);
+  pointer-events:auto;
+}
+.frame.near{ filter:brightness(1); box-shadow:0 0 0 3px var(--gold),0 6px 22px rgba(0,0,0,0.6); }
+.frame img{ width:100%; height:100%; object-fit:cover; display:block; border-radius:2px; background:#fff; }
+.frame .empty-art{
+  width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+  background:#f2e7db; color:#a8917f; font-size:0.7rem; text-align:center; padding:6px; border-radius:2px;
+  font-family:'Quicksand',sans-serif;
+}
+
+.corridor-viewport:focus{ outline:2px solid var(--gold); outline-offset:-2px; }
+.corridor-hint{
+  position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
+  background:rgba(0,0,0,0.55); color:#fff; padding:6px 14px; border-radius:999px;
+  font-size:0.75rem; pointer-events:none; opacity:.9;
+}
+.corridor-controls{ position:absolute; bottom:14px; right:14px; display:flex; gap:8px; }
+.peek-btn{
+  position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+  background:var(--gold); color:#2b2320; border:none; padding:10px 20px;
+  border-radius:999px; font-family:'Quicksand',sans-serif; font-weight:700;
+  font-size:0.85rem; cursor:pointer; box-shadow:0 6px 16px rgba(0,0,0,0.4);
+  animation:pop .25s ease;
+}
+.peek-btn[hidden]{ display:none; }
+@keyframes pop{ from{ transform:translateX(-50%) scale(0.85); opacity:0; } to{ transform:translateX(-50%) scale(1); opacity:1; } }
+.ctrl-btn{
+  width:46px; height:46px; border-radius:50%; border:none; background:rgba(255,255,255,0.85);
+  font-size:1.2rem; cursor:pointer; box-shadow:0 4px 10px rgba(0,0,0,0.3); user-select:none;
+}
+.ctrl-btn:active{ background:var(--rose); color:#fff; }
+
+.lightbox{
+  position:fixed; inset:0; background:rgba(20,14,12,0.88); z-index:200;
+  display:none; align-items:center; justify-content:center; padding:20px;
+}
+.lightbox.open{ display:flex; }
+.lb-card{
+  background:var(--cream); border-radius:16px; padding:16px; max-width:480px; width:100%;
+  text-align:center; box-shadow:0 20px 50px rgba(0,0,0,0.5);
+}
+.lb-card img{ width:100%; border-radius:10px; margin-bottom:10px; }
+.lb-card .cap{ font-family:'Caveat',cursive; font-size:1.4rem; color:var(--rose-deep); }
+.lb-close{
+  margin-top:12px; border:none; background:var(--rose); color:#fff; padding:8px 20px;
+  border-radius:999px; cursor:pointer; font-weight:700;
+}
+.gallery-empty-note{ text-align:center; color:var(--ink-soft); margin-top:12px; font-size:0.85rem; }
+
+/* ---------- Notes: scratch cards ---------- */
+.notes-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:16px; }
+.scratch-card{
+  position:relative; border-radius:16px; overflow:hidden; aspect-ratio:1/1;
+  box-shadow:0 6px 16px var(--shadow); border:1px solid var(--line);
+}
+.scratch-under{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  padding:14px; text-align:center; background:var(--card); font-family:'Caveat',cursive;
+  font-size:1.25rem; color:var(--rose-deep); line-height:1.3;
+}
+.scratch-canvas{ position:absolute; inset:0; cursor:crosshair; touch-action:none; }
+.scratch-card.revealed .scratch-canvas{ opacity:0; pointer-events:none; transition:opacity .5s; }
+
+/* ---------- Workout ---------- */
+.streak-bar{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  background:var(--card); border:1px solid var(--line); border-radius:16px;
+  padding:14px 18px; margin-bottom:16px; box-shadow:0 6px 14px var(--shadow);
+}
+.streak-num{ font-family:'Caveat',cursive; font-size:2rem; color:var(--gold); }
+.routine-list{ display:flex; flex-direction:column; gap:10px; }
+.routine{
+  background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px 18px;
+  box-shadow:0 6px 14px var(--shadow);
+}
+.routine summary{ cursor:pointer; font-weight:700; display:flex; justify-content:space-between; align-items:center; }
+.routine ul{ margin:10px 0 4px; padding-left:20px; color:var(--ink-soft); line-height:1.7; }
+.routine .done-btn{
+  margin-top:10px; border:none; background:var(--rose); color:#fff; padding:8px 18px;
+  border-radius:999px; cursor:pointer; font-weight:700;
+}
+.routine .done-btn[disabled]{ background:var(--line); color:var(--ink-soft); cursor:default; }
+.reward-reveal{
+  margin-top:18px; padding:18px; border-radius:16px; background:var(--bg2);
+  border:1px dashed var(--gold); text-align:center;
+}
+.reward-reveal img,.reward-reveal video{ max-width:100%; border-radius:10px; margin-top:8px; }
+.reward-reveal .cap{ font-family:'Caveat',cursive; font-size:1.3rem; color:var(--rose-deep); margin-top:6px; }
+
+/* ---------- Sketch ---------- */
+.sketch-toolbar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+.sketch-toolbar button, .sketch-toolbar input[type=range]{
+  border:1px solid var(--line); background:var(--card); border-radius:10px; padding:6px 10px; cursor:pointer;
+}
+.swatch{ width:26px; height:26px; border-radius:50%; border:2px solid var(--line); cursor:pointer; }
+.swatch.sel{ border-color:var(--ink); }
+#sketchCanvas{
+  width:100%; aspect-ratio:4/3; border-radius:16px; border:1px solid var(--line);
+  background:#fffdf9; touch-action:none; box-shadow:0 6px 16px var(--shadow);
+}
+
+/* ---------- Admin ---------- */
+.admin-link{ text-align:center; padding:24px 0 6px; }
+.admin-link a{ color:var(--ink-soft); font-size:0.75rem; text-decoration:none; opacity:0.5; }
+.admin-panel{
+  background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px;
+  margin-top:12px;
+}
+.admin-panel h3{ margin-top:0; }
+.admin-panel label{ display:block; font-size:0.8rem; font-weight:700; margin:12px 0 4px; }
+.admin-panel input[type=text], .admin-panel textarea, .admin-panel select{
+  width:100%; padding:8px 10px; border-radius:10px; border:1px solid var(--line);
+  font-family:'Quicksand',sans-serif; background:var(--bg);
+}
+.admin-panel .save-btn{
+  margin-top:14px; border:none; background:var(--rose-deep); color:#fff; padding:10px 20px;
+  border-radius:999px; cursor:pointer; font-weight:700;
+}
+.admin-list{ margin-top:14px; font-size:0.85rem; color:var(--ink-soft); }
+.admin-list .row{ display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); }
+.admin-list button.del{ border:none; background:none; color:var(--rose-deep); cursor:pointer; font-weight:700; }
+.status-msg{ font-size:0.8rem; margin-top:8px; }
+.status-msg.err{ color:var(--rose-deep); }
+.status-msg.ok{ color:#4a8a5c; }
+.cloud-banner{
+  font-size:0.75rem; padding:8px 12px; border-radius:10px; margin-top:10px;
+  background:var(--bg2); color:var(--ink-soft); border:1px solid var(--line);
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>For Meine Bao ♡</h1>
+    <p>a little world I'm building just for you</p>
+  </header>
+
+  <nav class="tabs">
+    <button data-tab="home" class="active">Home</button>
+    <button data-tab="gallery">Gallery</button>
+    <button data-tab="notes">Notes</button>
+    <button data-tab="workout">Workout</button>
+    <button data-tab="sketch">Sketch</button>
+  </nav>
+
+  <!-- HOME -->
+  <section class="page active" id="page-home">
+    <div class="counter-card">
+      <div class="counter-num" id="dayCount">0</div>
+      <div class="counter-label">days of us</div>
+      <div class="since" id="sinceLabel"></div>
+    </div>
+    <div class="home-msg">
+      <span class="script">hi, meine bao 🤍</span>
+      This whole little corner of the internet is yours. Walk through the gallery of your art,
+      scratch open a few notes, sneak in a home workout for a surprise, or leave me something on the sketchpad.
+      Happy almost-anniversary — more is coming as the days go by.
+    </div>
+    <div class="quicklinks">
+      <div class="qtile" data-go="gallery"><span class="emo">🖼️</span><span class="lbl">Walk the Gallery</span></div>
+      <div class="qtile" data-go="notes"><span class="emo">✨</span><span class="lbl">Scratch a Note</span></div>
+      <div class="qtile" data-go="workout"><span class="emo">🏡</span><span class="lbl">Home Workout</span></div>
+      <div class="qtile" data-go="sketch"><span class="emo">🎨</span><span class="lbl">Draw Together</span></div>
+    </div>
+  </section>
+
+  <!-- GALLERY -->
+  <section class="page" id="page-gallery">
+    <h2 class="script" style="margin:0 0 10px;">walk through it</h2>
+    <div class="gallery-shell">
+      <div class="corridor-viewport" id="corridorView" tabindex="0">
+        <div id="world"></div>
+        <div class="corridor-hint">tap top/bottom, drag, arrow keys, or WASD to walk</div>
+        <button class="peek-btn" id="peekBtn" hidden>view this painting ✦</button>
+        <div class="corridor-controls">
+          <button class="ctrl-btn" id="btnBack" aria-label="walk backward">↓</button>
+          <button class="ctrl-btn" id="btnFwd" aria-label="walk forward">↑</button>
+        </div>
+      </div>
+    </div>
+    <p class="gallery-empty-note" id="galleryEmptyNote"></p>
+  </section>
+
+  <!-- NOTES -->
+  <section class="page" id="page-notes">
+    <h2 class="script" style="margin:0 0 10px;">scratch to reveal</h2>
+    <div class="notes-grid" id="notesGrid"></div>
+  </section>
+
+  <!-- WORKOUT -->
+  <section class="page" id="page-workout">
+    <h2 class="script" style="margin:0 0 10px;">home workout companion</h2>
+    <div class="streak-bar">
+      <div>
+        <div class="streak-num" id="streakNum">0</div>
+        <div style="font-size:0.8rem;color:var(--ink-soft);">workouts completed</div>
+      </div>
+      <div style="font-size:0.8rem;color:var(--ink-soft);text-align:right;">
+        finish any routine below<br>to unlock a little reward
+      </div>
+    </div>
+    <div class="routine-list" id="routineList"></div>
+    <div id="rewardArea"></div>
+  </section>
+
+  <!-- SKETCH -->
+  <section class="page" id="page-sketch">
+    <h2 class="script" style="margin:0 0 10px;">draw with me</h2>
+    <p style="color:var(--ink-soft);font-size:0.85rem;margin-top:-6px;">
+      I started something — finish it however you like, then save it as yours.
+    </p>
+    <div class="sketch-toolbar">
+      <div class="swatch sel" style="background:#4a3c35" data-color="#4a3c35"></div>
+      <div class="swatch" style="background:#e8879b" data-color="#e8879b"></div>
+      <div class="swatch" style="background:#d9a441" data-color="#d9a441"></div>
+      <div class="swatch" style="background:#6c9a8b" data-color="#6c9a8b"></div>
+      <div class="swatch" style="background:#5b7fbd" data-color="#5b7fbd"></div>
+      <input type="range" id="brushSize" min="2" max="24" value="6">
+      <button id="clearSketch">clear</button>
+      <button id="saveSketch">save my drawing</button>
+    </div>
+    <canvas id="sketchCanvas"></canvas>
+    <p id="sketchStatus" class="status-msg"></p>
+  </section>
+
+  <div class="admin-link"><a href="#" id="adminToggle">♡ admin</a></div>
+  <section class="page" id="page-admin" style="padding:0 20px;">
+    <div class="admin-panel">
+      <h3>Add to her world</h3>
+      <p style="font-size:0.8rem;color:var(--ink-soft);margin-top:-6px;">
+        Add a drawing to the gallery, a scratch note, or the next reward, then hit save.
+      </p>
+      <p class="cloud-banner" id="cloudBanner"></p>
+
+      <h3 style="margin-top:22px;">Gallery drawing</h3>
+      <label>Image file</label>
+      <input type="file" id="galImgInput" accept="image/*">
+      <label>Caption</label>
+      <input type="text" id="galCapInput" placeholder="e.g. the cat you drew on our trip">
+      <button class="save-btn" id="addGalleryBtn">add to gallery</button>
+      <div class="admin-list" id="galleryAdminList"></div>
+
+      <h3 style="margin-top:22px;">Scratch note</h3>
+      <label>Note text</label>
+      <textarea id="noteTextInput" rows="2" placeholder="a little note for her to scratch open"></textarea>
+      <button class="save-btn" id="addNoteBtn">add note</button>
+      <div class="admin-list" id="notesAdminList"></div>
+
+      <h3 style="margin-top:22px;">Workout reward (next in line)</h3>
+      <label>Type</label>
+      <select id="rewardType">
+        <option value="text">text note</option>
+        <option value="image">photo / drawing</option>
+        <option value="video">short video</option>
+        <option value="audio">voice note</option>
+      </select>
+      <label>File (skip for text)</label>
+      <input type="file" id="rewardFileInput" accept="image/*,video/*,audio/*">
+      <label>Caption / text</label>
+      <textarea id="rewardCapInput" rows="2" placeholder="what you want her to see when she unlocks this"></textarea>
+      <button class="save-btn" id="addRewardBtn">queue reward</button>
+      <div class="admin-list" id="rewardAdminList"></div>
+
+      <p class="status-msg" id="adminStatus"></p>
+    </div>
+  </section>
+
+  <div class="lightbox" id="lightbox">
+    <div class="lb-card">
+      <img id="lbImg" src="" alt="">
+      <div class="cap" id="lbCap"></div>
+      <button class="lb-close" id="lbClose">close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase (only connects if firebase-config.js below has real keys in it) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+
+<script>
+/* ================= cloud storage adapter =================
+   FIREBASE_CONFIG comes from firebase-config.js. Leave it as the
+   placeholder (apiKey: "") and everything below still works — it just
+   saves to this browser only (localStorage). Fill in real keys (see
+   README.md) and gallery/notes/rewards/progress sync across every
+   device that opens this site. */
+const FIREBASE_ENABLED = !!(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey);
+let db = null;
+if(FIREBASE_ENABLED){
+  firebase.initializeApp(window.FIREBASE_CONFIG);
+  db = firebase.firestore();
+}
+
+const Store = {
+  async loadContent(){
+    if(FIREBASE_ENABLED){
+      try{
+        const snap = await db.collection("site").doc("content").get();
+        return snap.exists ? snap.data() : null;
+      }catch(e){ console.error("Firestore loadContent failed", e); return null; }
+    }
+    const raw = localStorage.getItem("obw_content");
+    return raw ? JSON.parse(raw) : null;
+  },
+  async saveContent(state){
+    if(FIREBASE_ENABLED){
+      await db.collection("site").doc("content").set(state);
+    } else {
+      localStorage.setItem("obw_content", JSON.stringify(state));
+    }
+  },
+  async loadProgress(){
+    if(FIREBASE_ENABLED){
+      try{
+        const snap = await db.collection("site").doc("progress").get();
+        return snap.exists ? snap.data() : { streak:0, claimed:0 };
+      }catch(e){ console.error("Firestore loadProgress failed", e); return { streak:0, claimed:0 }; }
+    }
+    return {
+      streak: Number(localStorage.getItem("obw_streak") || 0),
+      claimed: Number(localStorage.getItem("obw_claimed") || 0)
+    };
+  },
+  async saveProgress(p){
+    if(FIREBASE_ENABLED){
+      await db.collection("site").doc("progress").set(p);
+    } else {
+      localStorage.setItem("obw_streak", p.streak);
+      localStorage.setItem("obw_claimed", p.claimed);
+    }
+  }
+};
+
+/* ================= STATE (defaults — overwritten by Store.loadContent() if cloud/local data exists) ================= */
+const STATE = {
+  startDate: "2025-08-30",
+  herName: "Meine Bao",
+  gallery: [],
+  notes: [
+    "I fall for you a little more every single day.",
+    "You make ordinary days feel like something worth remembering.",
+    "Proud of you, always — even on the days you don't feel proud of yourself.",
+    "Home isn't a place. It's wherever you are."
+  ],
+  rewards: [
+    { type: "text", content: "", caption: "You did it! Here's a start: I love you more than words fit on a screen. More rewards coming as you add them 🤍" }
+  ]
+};
+
+const ROUTINES = [
+  { name: "5-Minute Wake Up", steps: ["20 jumping jacks","10 bodyweight squats","20s plank","10 standing knee raises each side","stretch it out"] },
+  { name: "No-Equipment Legs", steps: ["15 squats","10 lunges each leg","20 glute bridges","30s wall sit","calf raises x15"] },
+  { name: "Core & Cute", steps: ["20 crunches","30s plank","15 bicycle kicks each side","10 leg raises","20s side plank each side"] },
+  { name: "Full Body Flow", steps: ["10 push-ups (knees ok!)","15 squats","20 jumping jacks","30s plank","10 burpees or step-back burpees"] },
+  { name: "Gentle Stretch Day", steps: ["cat-cow x8","forward fold 30s","hip flexor stretch 30s each side","child's pose 1 min","deep breaths x10"] }
+];
+
+/* ================= tabs ================= */
+const tabs = document.querySelectorAll("nav.tabs button");
+tabs.forEach(btn => btn.addEventListener("click", () => goTab(btn.dataset.tab)));
+document.querySelectorAll(".qtile").forEach(t => t.addEventListener("click", () => goTab(t.dataset.go)));
+document.getElementById("adminToggle").addEventListener("click", e => { e.preventDefault(); goTab("admin"); });
+
+function goTab(name){
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  const target = document.getElementById("page-"+name);
+  if(target) target.classList.add("active");
+  tabs.forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+}
+
+/* ================= day counter ================= */
+function renderCounter(){
+  const start = new Date(STATE.startDate + "T00:00:00");
+  const now = new Date();
+  const days = Math.floor((now - start) / 86400000);
+  document.getElementById("dayCount").textContent = Math.max(days,0);
+  document.getElementById("sinceLabel").textContent =
+    "since " + start.toLocaleDateString(undefined,{year:"numeric",month:"long",day:"numeric"});
+}
+setInterval(renderCounter, 60000);
+
+/* ================= gallery: walk-through corridor ================= */
+const SEG_LEN = 400;
+const N_SEGMENTS = 6;
+let frames = [];
+
+function buildCorridor(){
+  const world = document.getElementById("world");
+  world.innerHTML = "";
+  frames = [];
+  const arts = STATE.gallery;
+  let artIdx = 0;
+
+  for(let i=0;i<N_SEGMENTS;i++){
+    const seg = document.createElement("div");
+    seg.className = "wall-seg";
+    seg.style.transform = `translateZ(${-i*SEG_LEN}px)`;
+
+    ["left","right"].forEach(side => {
+      const panel = document.createElement("div");
+      panel.className = "wpanel " + side;
+      panel.style.height = SEG_LEN + "px";
+      panel.style.top = "-" + (SEG_LEN/2 - 100) + "px";
+
+      const art = arts[artIdx];
+      const frame = document.createElement("div");
+      frame.className = "frame";
+      frame.style.left = "50%";
+      frame.style.marginLeft = "-65px";
+      frame.style.top = "40%";
+      frame.dataset.segIndex = i;
+
+      if(art){
+        const img = document.createElement("img");
+        img.src = art.img; img.alt = art.caption || "";
+        frame.appendChild(img);
+      } else {
+        const empty = document.createElement("div");
+        empty.className = "empty-art";
+        empty.textContent = "waiting for\nyour next\nmasterpiece";
+        frame.appendChild(empty);
+      }
+      panel.appendChild(frame);
+      seg.appendChild(panel);
+      frames.push({ el: frame, art, segZ: i*SEG_LEN });
+      artIdx++;
+    });
+    world.appendChild(seg);
+  }
+
+  document.getElementById("galleryEmptyNote").textContent =
+    arts.length ? "" : "the frames are empty for now — add her drawings from the admin page and they'll appear on the walls.";
+}
+
+let playerZ = 0;
+const MAX_Z = (N_SEGMENTS-1) * SEG_LEN;
+let nearestArt = null;
+function updateWorld(){
+  document.getElementById("world").style.transform = `translateZ(${-playerZ}px)`;
+  let closest = null, closestDist = Infinity;
+  frames.forEach(f => {
+    const dist = Math.abs(f.segZ - playerZ);
+    f.el.classList.toggle("near", dist < SEG_LEN*0.7);
+    if(f.art && dist < closestDist){ closestDist = dist; closest = f.art; }
+  });
+  const peekBtn = document.getElementById("peekBtn");
+  if(closest && closestDist < SEG_LEN*0.7){ nearestArt = closest; peekBtn.hidden = false; }
+  else { nearestArt = null; peekBtn.hidden = true; }
+}
+document.getElementById("peekBtn").addEventListener("click", () => { if(nearestArt) openLightbox(nearestArt); });
+function moveBy(delta){
+  playerZ = Math.min(Math.max(playerZ + delta, 0), MAX_Z);
+  updateWorld();
+}
+
+const view = document.getElementById("corridorView");
+
+function holdToWalk(el, speed){
+  if(!el) return;
+  let raf = null;
+  function loop(){ moveBy(speed); raf = requestAnimationFrame(loop); }
+  function start(e){ e.preventDefault(); view.focus(); if(raf) return; loop(); }
+  function stop(){ if(raf){ cancelAnimationFrame(raf); raf = null; } }
+  el.addEventListener("pointerdown", start);
+  el.addEventListener("pointerup", stop);
+  el.addEventListener("pointerleave", stop);
+  el.addEventListener("pointercancel", stop);
+}
+holdToWalk(document.getElementById("btnFwd"), 4.5);
+holdToWalk(document.getElementById("btnBack"), -4.5);
+
+view.addEventListener("click", () => view.focus());
+view.addEventListener("keydown", handleWalkKey);
+document.addEventListener("keydown", e => {
+  if(!document.getElementById("page-gallery").classList.contains("active")) return;
+  if(document.activeElement === view) return;
+  handleWalkKey(e);
+});
+function handleWalkKey(e){
+  if(!document.getElementById("page-gallery").classList.contains("active")) return;
+  if(["ArrowUp","w","W"].includes(e.key)){ e.preventDefault(); moveBy(24); }
+  if(["ArrowDown","s","S"].includes(e.key)){ e.preventDefault(); moveBy(-24); }
+}
+
+let dragging=false, dragStartY=0, dragStartZ=0, dragMoved=false;
+view.addEventListener("pointerdown", e => {
+  if(e.target.closest(".frame") || e.target.closest(".ctrl-btn") || e.target.closest("#peekBtn")) return;
+  view.focus();
+  dragging=true; dragMoved=false; dragStartY=e.clientY; dragStartZ=playerZ;
+  try{ view.setPointerCapture(e.pointerId); }catch(err){}
+});
+view.addEventListener("pointermove", e => {
+  if(!dragging) return;
+  const dy=e.clientY-dragStartY;
+  if(Math.abs(dy) > 6) dragMoved = true;
+  playerZ = Math.min(Math.max(dragStartZ - dy*1.2, 0), MAX_Z);
+  updateWorld();
+});
+view.addEventListener("pointerup", e => {
+  if(dragging && !dragMoved){
+    const r = view.getBoundingClientRect();
+    const relY = (e.clientY - r.top) / r.height;
+    const dir = relY < 0.5 ? 1 : -1;
+    let steps = 0;
+    function tapLoop(){ moveBy(dir*4.5); steps++; if(steps<26) requestAnimationFrame(tapLoop); }
+    tapLoop();
+  }
+  dragging = false;
+});
+window.addEventListener("pointerup", () => { dragging = false; });
+view.addEventListener("wheel", e => { moveBy(-e.deltaY*0.3); }, {passive:true});
+
+function openLightbox(art){
+  document.getElementById("lbImg").src = art.img;
+  document.getElementById("lbCap").textContent = art.caption || "";
+  document.getElementById("lightbox").classList.add("open");
+}
+document.getElementById("lbClose").addEventListener("click", () => document.getElementById("lightbox").classList.remove("open"));
+document.getElementById("lightbox").addEventListener("click", e => { if(e.target.id==="lightbox") e.currentTarget.classList.remove("open"); });
+
+/* ================= notes: scratch cards ================= */
+function buildNotes(){
+  const grid = document.getElementById("notesGrid");
+  grid.innerHTML = "";
+  STATE.notes.forEach(text => {
+    const card = document.createElement("div");
+    card.className = "scratch-card";
+    const under = document.createElement("div");
+    under.className = "scratch-under";
+    under.textContent = text;
+    const canvas = document.createElement("canvas");
+    canvas.className = "scratch-canvas";
+    card.appendChild(under);
+    card.appendChild(canvas);
+    grid.appendChild(card);
+    setupScratch(card, canvas);
+  });
+}
+
+function setupScratch(card, canvas){
+  function size(){
+    const r = card.getBoundingClientRect();
+    canvas.width = r.width; canvas.height = r.height;
+    const ctx = canvas.getContext("2d");
+    const grad = ctx.createLinearGradient(0,0,r.width,r.height);
+    grad.addColorStop(0,"#d9a441"); grad.addColorStop(1,"#e8879b");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0,0,r.width,r.height);
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.font = "bold 13px Quicksand, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("scratch me", r.width/2, r.height/2);
+  }
+  size();
+  window.addEventListener("resize", size);
+
+  const ctx = canvas.getContext("2d");
+  ctx.globalCompositeOperation = "destination-out";
+  let drawing = false;
+  let cleared = 0;
+
+  function pos(e){
+    const r = canvas.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    return { x: p.clientX - r.left, y: p.clientY - r.top };
+  }
+  function scratch(e){
+    const p = pos(e);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 18, 0, Math.PI*2);
+    ctx.fill();
+    cleared++;
+    if(cleared > 26 && !card.classList.contains("revealed")) card.classList.add("revealed");
+  }
+  canvas.addEventListener("pointerdown", e => { drawing=true; scratch(e); });
+  canvas.addEventListener("pointermove", e => { if(drawing) scratch(e); });
+  window.addEventListener("pointerup", () => drawing=false);
+}
+
+/* ================= workout ================= */
+let streak = 0, claimed = 0;
+function renderStreak(){ document.getElementById("streakNum").textContent = streak; }
+async function saveProgress(){ await Store.saveProgress({ streak, claimed }); }
+
+function buildRoutines(){
+  const list = document.getElementById("routineList");
+  list.innerHTML = "";
+  ROUTINES.forEach(r => {
+    const det = document.createElement("details");
+    det.className = "routine";
+    const sum = document.createElement("summary");
+    sum.textContent = r.name;
+    det.appendChild(sum);
+    const ul = document.createElement("ul");
+    r.steps.forEach(s => { const li=document.createElement("li"); li.textContent=s; ul.appendChild(li); });
+    det.appendChild(ul);
+    const btn = document.createElement("button");
+    btn.className = "done-btn";
+    btn.textContent = "mark complete";
+    btn.addEventListener("click", () => completeWorkout());
+    det.appendChild(btn);
+    list.appendChild(det);
+  });
+}
+
+async function completeWorkout(){
+  streak++;
+  await saveProgress();
+  renderStreak();
+  revealReward();
+}
+
+function revealReward(){
+  const area = document.getElementById("rewardArea");
+  const idx = Math.min(claimed, STATE.rewards.length - 1);
+  const reward = STATE.rewards[idx];
+  if(!reward){ area.innerHTML = ""; return; }
+  claimed = Math.min(claimed+1, STATE.rewards.length);
+  saveProgress();
+
+  let inner = "";
+  if(reward.type === "image") inner = `<img src="${reward.content}">`;
+  else if(reward.type === "video") inner = `<video src="${reward.content}" controls></video>`;
+  else if(reward.type === "audio") inner = `<audio src="${reward.content}" controls style="width:100%;"></audio>`;
+
+  area.innerHTML = `<div class="reward-reveal">
+    <div class="script" style="font-size:1.6rem;color:var(--gold);">reward unlocked ✦</div>
+    ${inner}
+    <div class="cap">${(reward.caption||"").replace(/</g,"&lt;")}</div>
+  </div>`;
+}
+
+/* ================= sketch ================= */
+const skCanvas = document.getElementById("sketchCanvas");
+const skCtx = skCanvas.getContext("2d");
+let skColor = "#4a3c35";
+let skSize = 6;
+
+function fitSketchCanvas(){
+  const r = skCanvas.getBoundingClientRect();
+  const prev = skCanvas.width ? skCanvas.toDataURL() : null;
+  skCanvas.width = r.width; skCanvas.height = r.height;
+  drawStarterOrRestore(prev);
+}
+function drawStarterOrRestore(prevDataUrl){
+  skCtx.fillStyle = "#fffdf9";
+  skCtx.fillRect(0,0,skCanvas.width,skCanvas.height);
+  if(prevDataUrl){
+    const im = new Image();
+    im.onload = () => skCtx.drawImage(im,0,0,skCanvas.width,skCanvas.height);
+    im.src = prevDataUrl;
+    return;
+  }
+  skCtx.strokeStyle = "#e8879b";
+  skCtx.lineWidth = 4;
+  skCtx.lineCap = "round";
+  const cx = skCanvas.width*0.28, cy = skCanvas.height*0.45, s = Math.min(skCanvas.width,skCanvas.height)*0.12;
+  skCtx.beginPath();
+  skCtx.moveTo(cx, cy + s*0.3);
+  skCtx.bezierCurveTo(cx - s*1.4, cy - s*0.9, cx - s*0.3, cy - s*1.7, cx, cy - s*0.5);
+  skCtx.bezierCurveTo(cx + s*0.3, cy - s*1.7, cx + s*1.4, cy - s*0.9, cx, cy + s*0.3);
+  skCtx.stroke();
+  skCtx.fillStyle = "#8a7468";
+  skCtx.font = "italic 22px Caveat, cursive";
+  skCtx.fillText("finish this with me? — draw anywhere", skCanvas.width*0.1, skCanvas.height*0.78);
+}
+window.addEventListener("resize", fitSketchCanvas);
+
+document.querySelectorAll(".swatch").forEach(sw => {
+  sw.addEventListener("click", () => {
+    document.querySelectorAll(".swatch").forEach(s=>s.classList.remove("sel"));
+    sw.classList.add("sel");
+    skColor = sw.dataset.color;
+  });
+});
+document.getElementById("brushSize").addEventListener("input", e => skSize = Number(e.target.value));
+document.getElementById("clearSketch").addEventListener("click", () => drawStarterOrRestore(null));
+
+let skDrawing = false, skLast = null;
+function skPos(e){
+  const r = skCanvas.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+skCanvas.addEventListener("pointerdown", e => { skDrawing=true; skLast=skPos(e); });
+skCanvas.addEventListener("pointermove", e => {
+  if(!skDrawing) return;
+  const p = skPos(e);
+  skCtx.strokeStyle = skColor; skCtx.lineWidth = skSize; skCtx.lineCap="round"; skCtx.lineJoin="round";
+  skCtx.beginPath(); skCtx.moveTo(skLast.x, skLast.y); skCtx.lineTo(p.x,p.y); skCtx.stroke();
+  skLast = p;
+});
+window.addEventListener("pointerup", () => skDrawing=false);
+
+document.getElementById("saveSketch").addEventListener("click", () => {
+  const status = document.getElementById("sketchStatus");
+  skCanvas.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "our-sketch.png";
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    status.textContent = "saved! text it to him 🤍";
+    status.className = "status-msg ok";
+  }, "image/png");
+});
+
+/* ================= admin ================= */
+function fileToDataURL(file){
+  return new Promise((res,rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+function renderAdminLists(){
+  document.getElementById("galleryAdminList").innerHTML = STATE.gallery.map((g,i) =>
+    `<div class="row"><span>${(g.caption||"untitled").slice(0,40)}</span><button class="del" data-kind="gallery" data-i="${i}">remove</button></div>`
+  ).join("") || "<div class='row'><span>nothing yet</span></div>";
+
+  document.getElementById("notesAdminList").innerHTML = STATE.notes.map((n,i) =>
+    `<div class="row"><span>${n.slice(0,40)}</span><button class="del" data-kind="notes" data-i="${i}">remove</button></div>`
+  ).join("");
+
+  document.getElementById("rewardAdminList").innerHTML = STATE.rewards.map((r,i) =>
+    `<div class="row"><span>[${r.type}] ${(r.caption||"").slice(0,32)}</span><button class="del" data-kind="rewards" data-i="${i}">remove</button></div>`
+  ).join("");
+
+  document.querySelectorAll(".admin-list .del").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      STATE[btn.dataset.kind].splice(Number(btn.dataset.i), 1);
+      renderAdminLists();
+      await publishState("removed.");
+    });
+  });
+}
+
+async function publishState(successMsg){
+  const status = document.getElementById("adminStatus");
+  try{
+    await Store.saveContent(STATE);
+    status.textContent = successMsg + (FIREBASE_ENABLED ? "" : " (saved to this browser only — add your Firebase keys to firebase-config.js to sync across devices, see README.md)");
+    status.className = "status-msg ok";
+  }catch(err){
+    status.textContent = "couldn't save — check your Firebase setup in README.md.";
+    status.className = "status-msg err";
+  }
+}
+
+document.getElementById("addGalleryBtn").addEventListener("click", async () => {
+  const fileInput = document.getElementById("galImgInput");
+  const cap = document.getElementById("galCapInput").value.trim();
+  if(!fileInput.files[0]){ document.getElementById("adminStatus").textContent="pick an image first."; return; }
+  const dataUrl = await fileToDataURL(fileInput.files[0]);
+  STATE.gallery.push({ img: dataUrl, caption: cap });
+  renderAdminLists();
+  buildCorridor(); updateWorld();
+  await publishState("added to the gallery.");
+});
+
+document.getElementById("addNoteBtn").addEventListener("click", async () => {
+  const text = document.getElementById("noteTextInput").value.trim();
+  if(!text) return;
+  STATE.notes.push(text);
+  document.getElementById("noteTextInput").value = "";
+  renderAdminLists();
+  buildNotes();
+  await publishState("note added.");
+});
+
+document.getElementById("addRewardBtn").addEventListener("click", async () => {
+  const type = document.getElementById("rewardType").value;
+  const cap = document.getElementById("rewardCapInput").value.trim();
+  const fileInput = document.getElementById("rewardFileInput");
+  let content = "";
+  if(type !== "text"){
+    if(!fileInput.files[0]){ document.getElementById("adminStatus").textContent="pick a file first."; return; }
+    content = await fileToDataURL(fileInput.files[0]);
+  }
+  STATE.rewards.push({ type, content, caption: cap });
+  document.getElementById("rewardCapInput").value = "";
+  renderAdminLists();
+  await publishState("reward queued.");
+});
+
+/* ================= boot ================= */
+(async function init(){
+  document.getElementById("cloudBanner").textContent = FIREBASE_ENABLED
+    ? "☁️ connected — content and progress sync across every device."
+    : "📱 not connected to the cloud yet — everything saves to this browser only. See README.md to turn on sync.";
+
+  const savedContent = await Store.loadContent();
+  if(savedContent) Object.assign(STATE, savedContent);
+
+  const savedProgress = await Store.loadProgress();
+  streak = savedProgress.streak || 0;
+  claimed = savedProgress.claimed || 0;
+
+  renderCounter();
+  buildCorridor(); updateWorld();
+  buildNotes();
+  renderStreak();
+  buildRoutines();
+  fitSketchCanvas();
+  renderAdminLists();
+})();
+</script>
+</body>
+</html>
