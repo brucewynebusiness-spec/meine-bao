@@ -881,12 +881,13 @@ function setupOutlinePass(renderer, initialW, initialH){
 
         vec3 c = texture2D(tDiffuse, vUv).rgb;
 
-        // gentle S-curve contrast, then a teal-shadow / warm-highlight
-        // split tone, then a soft vignette — a moody, graphic-novel grade
+        // gentle S-curve contrast, a saturation boost, a vivid blue-leaning
+        // split tone, then a soft vignette — a punchy, graphic-novel grade
         c = mix(c, c*c*(3.0-2.0*c), 0.35);
         float luma = dot(c, vec3(0.299, 0.587, 0.114));
-        vec3 shadowTint = vec3(0.85, 0.98, 1.03);
-        vec3 highTint = vec3(1.06, 1.0, 0.9);
+        c = mix(vec3(luma), c, 1.3);
+        vec3 shadowTint = vec3(0.78, 0.96, 1.18);
+        vec3 highTint = vec3(0.98, 1.03, 1.12);
         c *= mix(shadowTint, highTint, smoothstep(0.15, 0.85, luma));
         float vig = smoothstep(0.9, 0.35, length(vUv - 0.5));
         c *= mix(0.8, 1.0, vig);
@@ -986,6 +987,30 @@ function makePalaceFloorTexture(){
   ctx.fillStyle = glow;
   ctx.fillRect(0,0,512,512);
   const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeGlowPathTexture(){
+  // a mosaic-tiled walkway with a glowing cyan stream down its center,
+  // tiled lengthwise for the approach leading up to the entrance
+  const canvas = document.createElement("canvas");
+  canvas.width = 128; canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#0d3a52";
+  ctx.fillRect(0,0,128,256);
+  ctx.strokeStyle = "rgba(255,255,255,0.14)";
+  ctx.lineWidth = 2;
+  for(let y=16; y<256; y+=32){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(128,y); ctx.stroke(); }
+  for(let x=8; x<128; x+=24){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,256); ctx.stroke(); }
+  const grad = ctx.createLinearGradient(0,0,128,0);
+  grad.addColorStop(0, "rgba(70,220,255,0)");
+  grad.addColorStop(0.5, "rgba(140,245,255,0.95)");
+  grad.addColorStop(1, "rgba(70,220,255,0)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,128,256);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
@@ -1446,6 +1471,25 @@ function addEntranceUrn(parent, x, z, goldMat){
   }
 }
 
+// a little cluster of bright flowering plants — real color against the
+// marble, the way flowerbeds line a garden path
+function addFlowerCluster(parent, x, z){
+  const stemMat = new THREE.MeshStandardMaterial({ color: 0x2f8a56, roughness: 0.55, metalness: 0.02 });
+  const petalColors = [0xff5f96, 0xff3f74, 0xffa8cc, 0xffe15a];
+  for(let i=0;i<6;i++){
+    const stemH = 0.26 + Math.random()*0.3;
+    const sx = x + (Math.random()-0.5)*0.5, sz = z + (Math.random()-0.5)*0.5;
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.02, stemH, 6), stemMat);
+    stem.position.set(sx, stemH/2, sz);
+    parent.add(stem);
+    const petalMat = new THREE.MeshStandardMaterial({ color: petalColors[i % petalColors.length], roughness: 0.3, metalness: 0.05, emissive: petalColors[i % petalColors.length], emissiveIntensity: 0.15 });
+    const petal = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), petalMat);
+    petal.scale.set(1, 0.55, 1);
+    petal.position.set(sx, stemH + 0.03, sz);
+    parent.add(petal);
+  }
+}
+
 // a little scatter of pearls and a shell beside a threshold or corner
 function addPearlCluster(parent, x, z){
   const pearlMat = new THREE.MeshPhysicalMaterial({ color: 0xfaf5ea, roughness: 0.1, metalness: 0.1, clearcoat: 0.6, clearcoatRoughness: 0.2 });
@@ -1497,6 +1541,29 @@ function buildPalace(){
   addEntranceUrn(palaceGroup, 3.2, HALL_R - 0.6, goldMat);
   addLightShaft(palaceGroup, 0, 0, WALL_HEIGHT + HALL_R*0.85, 0, HALL_R*0.55);
 
+  // a glowing mosaic walkway leading out from the entrance into the open
+  // water, lined with bright flowering plants
+  const pathLen = 11.5, pathStart = HALL_R - 0.4;
+  const pathTex = makeGlowPathTexture();
+  pathTex.repeat.set(1, pathLen/2.2);
+  const pathMat = new THREE.MeshStandardMaterial({
+    map: pathTex, roughness: 0.4, metalness: 0.08,
+    emissiveMap: pathTex, emissive: 0x49d6ff, emissiveIntensity: 1.1
+  });
+  const glowPath = new THREE.Mesh(new THREE.PlaneGeometry(2.6, pathLen), pathMat);
+  glowPath.rotation.x = -Math.PI/2;
+  glowPath.position.set(0, 0.015, pathStart + pathLen/2);
+  glowPath.receiveShadow = true;
+  palaceGroup.add(glowPath);
+  const pathLight = new THREE.PointLight(0x7ee8ff, 0.5, 8, 2);
+  pathLight.position.set(0, 0.6, pathStart + pathLen*0.55);
+  palaceGroup.add(pathLight);
+  for(let i=0;i<4;i++){
+    const z = pathStart + 1.5 + i*2.8;
+    addFlowerCluster(palaceGroup, -1.9, z);
+    addFlowerCluster(palaceGroup, 1.9, z);
+  }
+
   // hallway connecting the great hall's north archway to the sanctum
   const hallZ0 = -HALL_R, hallZ1 = -(HALL_R+HALLWAY_LEN);
   const hallwayFloor = new THREE.Mesh(new THREE.PlaneGeometry(HALLWAY_HALF_W*2, HALLWAY_LEN), hallwayFloorMat);
@@ -1536,6 +1603,8 @@ function buildPalace(){
   palaceGroup.add(sanctumFloor);
   addPearlCluster(palaceGroup, -SANCTUM_R+1.5, SANCTUM_CZ);
   addPearlCluster(palaceGroup, SANCTUM_R-1.5, SANCTUM_CZ);
+  addFlowerCluster(palaceGroup, -SANCTUM_R+2.4, SANCTUM_CZ - 1.5);
+  addFlowerCluster(palaceGroup, SANCTUM_R-2.4, SANCTUM_CZ + 1.5);
   addLightShaft(palaceGroup, 0, SANCTUM_CZ, WALL_HEIGHT + SANCTUM_R*0.85, 0, SANCTUM_R*0.55);
 
   // warm interior glow so the halls feel distinct from the open blue water
@@ -1604,7 +1673,7 @@ function makeBubbleTexture(){
 function initBubbles(){
   const tex = makeBubbleTexture();
   const mat = new THREE.SpriteMaterial({ map: tex, transparent:true, depthWrite:false });
-  for(let i=0;i<28;i++){
+  for(let i=0;i<44;i++){
     const sprite = new THREE.Sprite(mat.clone());
     const scale = 0.06 + Math.random()*0.12;
     sprite.scale.set(scale, scale, 1);
