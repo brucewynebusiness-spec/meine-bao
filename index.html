@@ -703,12 +703,15 @@ const HALLWAY_LEN = 7;
 const HALLWAY_HALF_W = 2;
 const SANCTUM_R = 6;
 const SANCTUM_CZ = -(HALL_R + HALLWAY_LEN + SANCTUM_R); // sanctum center, along -Z
-const PALACE_STONE = 0xcdbca8;
-const PALACE_TRIM = 0x93816e;
+const PALACE_STONE = 0xf2efe4;   // pale marble
+const PALACE_TRIM = 0xecdcae;    // warm ivory trim
+const PALACE_GOLD = 0xd8b76a;    // gilded accents — arches, finials, lanterns
+const PALACE_GLASS = 0xdcf1fb;   // pale glassy blue-white for the domes
 
 let renderer, scene, camera, raycaster, toonGradient, hemiLight, keyLight;
 let frameEntries = [];           // { group, art, hitMesh }
-let kelpBlades = [];              // swaying flora
+let kelpBlades = [];              // swaying flora (rebuilt whenever the gallery changes)
+let palaceKelpBlades = [];        // swaying flora that's part of the static palace (built once)
 let sharks = [];                  // large distant patrollers
 let jellyfish = [];               // drifting, pulsing bioluminescent bells
 let mermaids = [];                // orbiting + a guide who swims the whole palace loop
@@ -854,6 +857,42 @@ function makeClearingFloorTexture(){
   return tex;
 }
 
+function makePalaceFloorTexture(){
+  // pale marble with a gilded radiating-rosette inlay, centered so it reads
+  // right on any circular room floor
+  const canvas = document.createElement("canvas");
+  canvas.width = 512; canvas.height = 512;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#f2ecdd";
+  ctx.fillRect(0,0,512,512);
+  ctx.strokeStyle = "rgba(190,178,150,0.22)";
+  ctx.lineWidth = 1.5;
+  for(let i=0;i<16;i++){
+    let x = Math.random()*512, y = Math.random()*512;
+    ctx.beginPath(); ctx.moveTo(x,y);
+    for(let s=0;s<5;s++){ x += (Math.random()-0.5)*140; y += (Math.random()-0.5)*140; ctx.lineTo(x,y); }
+    ctx.stroke();
+  }
+  ctx.strokeStyle = "rgba(196,157,88,0.6)";
+  ctx.lineWidth = 2;
+  for(let a=0; a<Math.PI*2; a+=Math.PI/10){
+    ctx.beginPath();
+    ctx.moveTo(256 + Math.cos(a)*46, 256 + Math.sin(a)*46);
+    ctx.lineTo(256 + Math.cos(a)*248, 256 + Math.sin(a)*248);
+    ctx.stroke();
+  }
+  ctx.lineWidth = 3;
+  for(let r=46; r<250; r+=48){ ctx.beginPath(); ctx.arc(256,256,r,0,Math.PI*2); ctx.stroke(); }
+  const glow = ctx.createRadialGradient(256,256,4,256,256,70);
+  glow.addColorStop(0, "rgba(255,251,238,0.95)");
+  glow.addColorStop(1, "rgba(255,251,238,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0,0,512,512);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function makeSeabedTexture(){
   // the endless seabed stretching out past the reef — a tileable sandy pattern
   const canvas = document.createElement("canvas");
@@ -933,11 +972,13 @@ function updateFish(dt, tSec){
     const nextY = u.height + Math.sin((tSec+0.06)*u.bobSpeed + u.bobPhase) * u.bobAmp;
     const lookTarget = new THREE.Vector3(u.cx + Math.sin(nextAng)*u.radius, nextY, u.cz + Math.cos(nextAng)*u.radius);
     fish.lookAt(lookTarget);
+    fish.rotateY(Math.PI); // Object3D.lookAt faces +Z at the target for non-cameras; the model's nose is built at -Z
   });
 }
 
 function updateKelp(t){
   kelpBlades.forEach(k => { k.obj.rotation.x = Math.sin(t*0.001*k.speed + k.phase) * k.amp; });
+  palaceKelpBlades.forEach(k => { k.obj.rotation.x = Math.sin(t*0.001*k.speed + k.phase) * k.amp; });
 }
 
 /* big, slow, distant patrollers out past the reef — give the open water a
@@ -985,6 +1026,7 @@ function updateSharks(dt, tSec){
     const nextAng = ang + u.angSpeed*0.06;
     const lookTarget = new THREE.Vector3(u.cx + Math.sin(nextAng)*u.radius, y, u.cz + Math.cos(nextAng)*u.radius);
     shark.lookAt(lookTarget);
+    shark.rotateY(Math.PI);
   });
 }
 
@@ -1162,6 +1204,7 @@ function updateMermaids(dt, tSec){
       m.position.copy(pos);
       const nextU = Math.min(Math.max(u + dir*0.01, 0), 1);
       m.lookAt(samplePath(m.userData.path, nextU));
+      m.rotateY(Math.PI);
     } else {
       const o = m.userData.orbit;
       const ang = o.angPhase + tSec * o.angSpeed;
@@ -1169,6 +1212,7 @@ function updateMermaids(dt, tSec){
       m.position.set(o.cx + Math.sin(ang)*o.radius, y, o.cz + Math.cos(ang)*o.radius);
       const nextAng = ang + o.angSpeed*0.06;
       m.lookAt(new THREE.Vector3(o.cx + Math.sin(nextAng)*o.radius, y, o.cz + Math.cos(nextAng)*o.radius));
+      m.rotateY(Math.PI);
     }
     m.userData.tailPivot.rotation.y = Math.sin(tSec*3.2 + m.userData.swishPhase) * 0.5;
   });
@@ -1200,19 +1244,121 @@ function addWallRing(parent, cx, cz, radius, doorAngles, mat){
   }
 }
 
-function addDome(parent, cx, cz, radius, mat){
+function addDome(parent, cx, cz, radius, mat, goldMat){
   const dome = new THREE.Mesh(new THREE.SphereGeometry(radius+0.3, 24, 12, 0, Math.PI*2, 0, Math.PI/2), mat);
   dome.position.set(cx, WALL_HEIGHT, cz);
   parent.add(dome);
+  // a gilded rim where the dome meets the wall, and a finial spire at its apex
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(radius+0.3, 0.1, 8, 40), goldMat);
+  rim.rotation.x = Math.PI/2;
+  rim.position.set(cx, WALL_HEIGHT, cz);
+  parent.add(rim);
+  const spireH = radius * 0.4;
+  const spire = new THREE.Mesh(new THREE.ConeGeometry(0.16, spireH, 8), goldMat);
+  spire.position.set(cx, WALL_HEIGHT + radius + 0.3 + spireH/2, cz);
+  parent.add(spire);
+  const finialBall = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), goldMat);
+  finialBall.position.set(cx, WALL_HEIGHT + radius + 0.3 + spireH + 0.14, cz);
+  parent.add(finialBall);
 }
 
-function addColumn(parent, x, z, h, mat){
-  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, h, 8), mat);
-  col.position.set(x, h/2, z);
+function addColumn(parent, x, z, h, mat, goldMat){
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.44, 0.16, 10), goldMat);
+  base.position.set(x, 0.08, z);
+  parent.add(base);
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, h-0.16, 12), mat);
+  col.position.set(x, 0.16 + (h-0.16)/2, z);
   parent.add(col);
-  const cap = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.16, 0.55), mat);
-  cap.position.set(x, h + 0.08, z);
-  parent.add(cap);
+  const capital = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.24, 0.22, 10), goldMat);
+  capital.position.set(x, h+0.11, z);
+  parent.add(capital);
+  const abacus = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.1, 0.58), goldMat);
+  abacus.position.set(x, h + 0.27, z);
+  parent.add(abacus);
+}
+
+// a gilded semicircular archway framing a doorway threshold, its span
+// aligned tangent to the wall and its rise pointing straight up
+function addArch(parent, cx, cz, wallRadius, angle, spanRadius, tubeRadius, mat){
+  const arch = new THREE.Mesh(new THREE.TorusGeometry(spanRadius, tubeRadius, 8, 28, Math.PI), mat);
+  arch.position.set(cx + Math.sin(angle)*wallRadius, 0, cz + Math.cos(angle)*wallRadius);
+  arch.rotation.y = angle;
+  parent.add(arch);
+  // a couple of small finials at the arch's feet
+  for(const side of [-1,1]){
+    const finial = new THREE.Mesh(new THREE.SphereGeometry(tubeRadius*1.6, 8, 6), mat);
+    finial.position.set(
+      cx + Math.sin(angle)*wallRadius + Math.cos(angle)*side*spanRadius,
+      0,
+      cz + Math.cos(angle)*wallRadius - Math.sin(angle)*side*spanRadius
+    );
+    parent.add(finial);
+  }
+}
+
+// a slender gilded lantern post with a warm glowing bulb on top
+function addLanternPost(parent, x, z, h, goldMat){
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, h, 6), goldMat);
+  post.position.set(x, h/2, z);
+  parent.add(post);
+  const cage = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshToonMaterial({ color: 0xfff2c9, gradientMap: toonGradient, transparent:true, opacity:0.85 }));
+  cage.position.set(x, h+0.16, z);
+  parent.add(cage);
+  const glow = new THREE.PointLight(0xffdf9e, 0.55, 5, 2);
+  glow.position.set(x, h+0.16, z);
+  parent.add(glow);
+}
+
+// a soft cone of light falling from the dome apex to the floor, like
+// sunbeams filtering down through the water above
+function addLightShaft(parent, cx, cz, apexY, floorY, radius){
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xffffff, transparent:true, opacity:0.07, side: THREE.DoubleSide,
+    depthWrite:false, blending: THREE.AdditiveBlending
+  });
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(radius*0.12, radius*0.8, apexY-floorY, 20, 1, true), mat);
+  shaft.position.set(cx, floorY + (apexY-floorY)/2, cz);
+  parent.add(shaft);
+}
+
+// a tall gilded urn with a plume of kelp — flanks a grand entrance the
+// way potted greenery flanks a palace doorway
+function addEntranceUrn(parent, x, z, goldMat){
+  const urn = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.16, 0.4, 10), goldMat);
+  urn.position.set(x, 0.2, z);
+  parent.add(urn);
+  const lip = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.04, 6, 12), goldMat);
+  lip.rotation.x = Math.PI/2;
+  lip.position.set(x, 0.4, z);
+  parent.add(lip);
+  for(let k=0;k<4;k++){
+    const h = 1.3 + Math.random()*0.7;
+    const bladeMat = new THREE.MeshToonMaterial({ color: KELP_COLORS[k % KELP_COLORS.length], gradientMap: toonGradient, side: THREE.DoubleSide });
+    const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.18, h), bladeMat);
+    blade.geometry.translate(0, h/2, 0);
+    const pivot = new THREE.Group();
+    pivot.position.set(x + (Math.random()-0.5)*0.2, 0.4, z + (Math.random()-0.5)*0.2);
+    pivot.rotation.y = Math.random()*Math.PI*2;
+    pivot.add(blade);
+    parent.add(pivot);
+    palaceKelpBlades.push({ obj: pivot, phase: Math.random()*Math.PI*2, speed: 0.6+Math.random()*0.4, amp: 0.1+Math.random()*0.06 });
+  }
+}
+
+// a little scatter of pearls and a shell beside a threshold or corner
+function addPearlCluster(parent, x, z){
+  const pearlMat = new THREE.MeshToonMaterial({ color: 0xfaf5ea, gradientMap: toonGradient });
+  for(let i=0;i<4;i++){
+    const p = new THREE.Mesh(new THREE.SphereGeometry(0.06+Math.random()*0.05, 8, 6), pearlMat);
+    p.position.set(x+(Math.random()-0.5)*0.5, 0.06, z+(Math.random()-0.5)*0.5);
+    parent.add(p);
+  }
+  const shellMat = new THREE.MeshToonMaterial({ color: 0xffe3ec, gradientMap: toonGradient, side: THREE.DoubleSide });
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 6, 0, Math.PI*2, 0, Math.PI/2), shellMat);
+  shell.scale.set(1, 0.55, 1);
+  shell.rotation.z = Math.random()*Math.PI;
+  shell.position.set(x, 0.03, z);
+  parent.add(shell);
 }
 
 function buildPalace(){
@@ -1221,26 +1367,44 @@ function buildPalace(){
 
   const wallMat = new THREE.MeshToonMaterial({ color: PALACE_STONE, gradientMap: toonGradient });
   const trimMat = new THREE.MeshToonMaterial({ color: PALACE_TRIM, gradientMap: toonGradient });
-  const domeMat = new THREE.MeshToonMaterial({ color: 0xe7dcc9, gradientMap: toonGradient, side: THREE.DoubleSide });
-  const floorMat = new THREE.MeshToonMaterial({ map: makeClearingFloorTexture(), gradientMap: toonGradient });
+  const goldMat = new THREE.MeshToonMaterial({ color: PALACE_GOLD, gradientMap: toonGradient });
+  const domeMat = new THREE.MeshToonMaterial({ color: PALACE_GLASS, gradientMap: toonGradient, side: THREE.DoubleSide, transparent:true, opacity:0.88 });
+  const marbleFloorMat = new THREE.MeshToonMaterial({ map: makePalaceFloorTexture(), gradientMap: toonGradient });
+  const hallwayFloorMat = new THREE.MeshToonMaterial({ color: 0xf1ead8, gradientMap: toonGradient });
 
   // great hall: walls with a south archway (open water) and a north
-  // archway (into the hallway), domed roof
+  // archway (into the hallway), a pale glass dome with a gilded rim
   addWallRing(palaceGroup, 0, 0, HALL_R, [0, Math.PI], wallMat);
-  addDome(palaceGroup, 0, 0, HALL_R, domeMat);
+  addDome(palaceGroup, 0, 0, HALL_R, domeMat, goldMat);
+  addArch(palaceGroup, 0, 0, HALL_R, 0, HALL_R*Math.sin(DOOR_HALF)+0.3, 0.16, goldMat);
+  addArch(palaceGroup, 0, 0, HALL_R, Math.PI, HALL_R*Math.sin(DOOR_HALF)+0.3, 0.16, goldMat);
 
-  // a modest facade framing the south entrance so it reads as a doorway
-  // from outside, not just a gap in the wall
+  // a proper colonnaded facade framing the south entrance, plus a row of
+  // lanterns lighting the approach out into the open water
   for(const side of [-1,1]){
-    addColumn(palaceGroup, Math.sin(DOOR_HALF+0.35)*HALL_R*side, HALL_R*0.94, WALL_HEIGHT, trimMat);
+    addColumn(palaceGroup, Math.sin(DOOR_HALF+0.32)*HALL_R*side, Math.cos(DOOR_HALF+0.32)*HALL_R, WALL_HEIGHT, wallMat, goldMat);
+    addColumn(palaceGroup, Math.sin(DOOR_HALF+0.55)*HALL_R*side, Math.cos(DOOR_HALF+0.55)*HALL_R, WALL_HEIGHT, wallMat, goldMat);
   }
+  for(let i=0;i<3;i++){
+    const z = HALL_R + 2.2 + i*3.4;
+    addLanternPost(palaceGroup, -2.4, z, 1.9, goldMat);
+    addLanternPost(palaceGroup, 2.4, z, 1.9, goldMat);
+  }
+  addPearlCluster(palaceGroup, -1.6, HALL_R + 0.8);
+  addPearlCluster(palaceGroup, 1.8, HALL_R + 1.3);
+  addEntranceUrn(palaceGroup, -3.2, HALL_R - 0.6, goldMat);
+  addEntranceUrn(palaceGroup, 3.2, HALL_R - 0.6, goldMat);
+  addLightShaft(palaceGroup, 0, 0, WALL_HEIGHT + HALL_R*0.85, 0, HALL_R*0.55);
 
   // hallway connecting the great hall's north archway to the sanctum
   const hallZ0 = -HALL_R, hallZ1 = -(HALL_R+HALLWAY_LEN);
-  const hallwayFloor = new THREE.Mesh(new THREE.PlaneGeometry(HALLWAY_HALF_W*2, HALLWAY_LEN), floorMat);
+  const hallwayFloor = new THREE.Mesh(new THREE.PlaneGeometry(HALLWAY_HALF_W*2, HALLWAY_LEN), hallwayFloorMat);
   hallwayFloor.rotation.x = -Math.PI/2;
   hallwayFloor.position.set(0, 0.01, (hallZ0+hallZ1)/2);
   palaceGroup.add(hallwayFloor);
+  const centerline = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.012, HALLWAY_LEN), goldMat);
+  centerline.position.set(0, 0.017, (hallZ0+hallZ1)/2);
+  palaceGroup.add(centerline);
   for(const side of [-1,1]){
     const wall = new THREE.Mesh(new THREE.BoxGeometry(0.5, WALL_HEIGHT, HALLWAY_LEN), wallMat);
     wall.position.set(side*HALLWAY_HALF_W, WALL_HEIGHT/2, (hallZ0+hallZ1)/2);
@@ -1249,26 +1413,33 @@ function buildPalace(){
   const ceiling = new THREE.Mesh(new THREE.BoxGeometry(HALLWAY_HALF_W*2+1, 0.4, HALLWAY_LEN), trimMat);
   ceiling.position.set(0, WALL_HEIGHT+0.2, (hallZ0+hallZ1)/2);
   palaceGroup.add(ceiling);
+  const trimBand = new THREE.Mesh(new THREE.BoxGeometry(HALLWAY_HALF_W*2+1, 0.08, HALLWAY_LEN), goldMat);
+  trimBand.position.set(0, WALL_HEIGHT-0.02, (hallZ0+hallZ1)/2);
+  palaceGroup.add(trimBand);
   const colSpacing = HALLWAY_LEN/3;
   for(let i=0;i<3;i++){
     const z = hallZ0 - colSpacing*(i+0.5);
-    addColumn(palaceGroup, -HALLWAY_HALF_W+0.35, z, WALL_HEIGHT, trimMat);
-    addColumn(palaceGroup, HALLWAY_HALF_W-0.35, z, WALL_HEIGHT, trimMat);
+    addColumn(palaceGroup, -HALLWAY_HALF_W+0.35, z, WALL_HEIGHT, wallMat, goldMat);
+    addColumn(palaceGroup, HALLWAY_HALF_W-0.35, z, WALL_HEIGHT, wallMat, goldMat);
   }
 
   // sanctum: a smaller domed room, single archway back toward the hallway
   addWallRing(palaceGroup, 0, SANCTUM_CZ, SANCTUM_R, [0], wallMat);
-  addDome(palaceGroup, 0, SANCTUM_CZ, SANCTUM_R, domeMat);
-  const sanctumFloor = new THREE.Mesh(new THREE.CircleGeometry(SANCTUM_R+0.2, 40), floorMat);
+  addDome(palaceGroup, 0, SANCTUM_CZ, SANCTUM_R, domeMat, goldMat);
+  addArch(palaceGroup, 0, SANCTUM_CZ, SANCTUM_R, 0, SANCTUM_R*Math.sin(DOOR_HALF)+0.25, 0.14, goldMat);
+  const sanctumFloor = new THREE.Mesh(new THREE.CircleGeometry(SANCTUM_R+0.2, 40), marbleFloorMat);
   sanctumFloor.rotation.x = -Math.PI/2;
   sanctumFloor.position.set(0, 0.012, SANCTUM_CZ);
   palaceGroup.add(sanctumFloor);
+  addPearlCluster(palaceGroup, -SANCTUM_R+1.5, SANCTUM_CZ);
+  addPearlCluster(palaceGroup, SANCTUM_R-1.5, SANCTUM_CZ);
+  addLightShaft(palaceGroup, 0, SANCTUM_CZ, WALL_HEIGHT + SANCTUM_R*0.85, 0, SANCTUM_R*0.55);
 
   // warm interior glow so the halls feel distinct from the open blue water
-  const hallLight = new THREE.PointLight(0xffe9c7, 0.6, HALL_R*2.4, 2);
+  const hallLight = new THREE.PointLight(0xfff3d9, 0.6, HALL_R*2.4, 2);
   hallLight.position.set(0, WALL_HEIGHT-0.6, 0);
   palaceGroup.add(hallLight);
-  const sanctumLight = new THREE.PointLight(0xffe9c7, 0.55, SANCTUM_R*2.4, 2);
+  const sanctumLight = new THREE.PointLight(0xfff3d9, 0.55, SANCTUM_R*2.4, 2);
   sanctumLight.position.set(0, WALL_HEIGHT-0.6, SANCTUM_CZ);
   palaceGroup.add(sanctumLight);
 
@@ -1404,15 +1575,14 @@ function initGL(){
   scene.add(keyLight);
   applyDayNightLighting();
 
-  // no walls or ceiling — an open, boundless ocean. The seabed tiles far past
-  // the fog line so its edge is never visible, and a brighter "reef clearing"
-  // patch marks the spot where her gallery actually stands.
+  // an endless open ocean seabed outside, with the great hall's pale
+  // marble floor showing through where the palace stands
   const seabedMat = new THREE.MeshToonMaterial({ map: makeSeabedTexture(), gradientMap: toonGradient });
   const seabed = new THREE.Mesh(new THREE.PlaneGeometry(FLOOR_RADIUS*2, FLOOR_RADIUS*2), seabedMat);
   seabed.rotation.x = -Math.PI/2;
   scene.add(seabed);
 
-  const clearingMat = new THREE.MeshToonMaterial({ map: makeClearingFloorTexture(), gradientMap: toonGradient, transparent:true });
+  const clearingMat = new THREE.MeshToonMaterial({ map: makePalaceFloorTexture(), gradientMap: toonGradient, transparent:true });
   const clearing = new THREE.Mesh(new THREE.CircleGeometry(ROOM_RADIUS+1.5, 48), clearingMat);
   clearing.rotation.x = -Math.PI/2;
   clearing.position.y = 0.01;
