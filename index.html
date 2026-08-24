@@ -57,6 +57,12 @@ nav.tabs button{
 }
 nav.tabs button.active{ background:var(--rose); color:#fff; border-color:var(--rose); }
 nav.tabs button:hover{ transform:translateY(-1px); }
+.qbtn{
+  border:1px solid var(--line); background:var(--card); color:var(--ink);
+  padding:7px 14px; border-radius:999px; font-family:'Quicksand',sans-serif;
+  font-weight:600; font-size:0.8rem; cursor:pointer; transition:.15s;
+}
+.qbtn:hover{ transform:translateY(-1px); background:var(--rose); color:#fff; border-color:var(--rose); }
 
 .page{ display:none; padding:18px 20px; }
 .page.active{ display:block; }
@@ -200,7 +206,7 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 }
 
 /* ---------- Notes: scratch cards ---------- */
-.notes-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:16px; }
+.daily-note-slot{ max-width:300px; margin:0 auto; }
 .scratch-card{
   position:relative; border-radius:16px; overflow:hidden; aspect-ratio:1/1;
   box-shadow:0 6px 16px var(--shadow); border:1px solid var(--line);
@@ -442,8 +448,14 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 
   <!-- NOTES -->
   <section class="page" id="page-notes">
-    <h2 class="script" style="margin:0 0 10px;">scratch to reveal</h2>
-    <div class="notes-grid" id="notesGrid"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+      <h2 class="script" style="margin:0;">today's note</h2>
+      <button class="qbtn" id="notesResetBtn" type="button" title="cover the card back up">↻ reset card</button>
+    </div>
+    <p style="color:var(--ink-soft);font-size:0.85rem;margin-top:-6px;">
+      One new note unlocks every day — about your mind, your body, and everything in between. Not just workout talk.
+    </p>
+    <div class="daily-note-slot" id="notesGrid"></div>
   </section>
 
   <!-- WORKOUT -->
@@ -461,6 +473,9 @@ nav.tabs button:hover{ transform:translateY(-1px); }
         mark a day complete<br>to unlock a little reward
       </div>
     </div>
+    <h3 class="script" style="margin:14px 0 4px;font-size:1.15rem;">today's note</h3>
+    <p style="color:var(--ink-soft);font-size:0.8rem;margin-top:-4px;">for your mind and your body, not just the workout</p>
+    <div class="daily-note-slot" id="workoutDailyNote"></div>
     <div class="cal-header">
       <button id="calPrev" aria-label="previous month">‹</button>
       <div class="cal-month-label" id="calMonthLabel"></div>
@@ -664,6 +679,57 @@ const STATE = {
   timeline: [] // { date: "YYYY-MM-DD", text, img? } — kept sorted by date when rendered
 };
 
+/* one curated pool feeding the daily scratch note — mindset, body
+   positivity, reassurance, and everyday encouragement, not just
+   workout praise. a new one unlocks each day, picked deterministically
+   from today's date so it's the same note everywhere she opens it. */
+const DAILY_NOTES = [
+  "You don't have to feel ready to start — you just have to start. Ready shows up later.",
+  "Progress isn't a straight line, and you're still allowed to call it progress.",
+  "You're not behind. You're exactly where you are, and that's a real place to grow from.",
+  "The version of you a year from now is being built today, in small unglamorous moments like this one.",
+  "It's okay to rest without earning it first.",
+  "You're allowed to be proud of yourself for things nobody else notices.",
+  "Comparing your day 12 to someone else's day 300 isn't fair to you.",
+  "You don't need to be your most productive self to be worthy of love — including your own.",
+  "Some days the win is just showing up. That counts.",
+  "You're not starting over. You're starting from experience.",
+  "Your body is not a problem to solve — it's the home you get to live in.",
+  "Strength looks different every day, and every version of it is real.",
+  "You are allowed to move your body because it feels good, not just because you \"should.\"",
+  "Your worth was never up for negotiation with a scale, a mirror, or anyone's opinion.",
+  "The body that gets you through your hardest days deserves some gentleness.",
+  "You don't have to earn rest, food, or comfort by being \"good\" first.",
+  "Whatever your body looks like today, it's carrying someone I love completely.",
+  "Muscles get stronger with rest, not just effort — be as kind to yourself as you are disciplined.",
+  "You are so much more than how you look on any given day.",
+  "I'm not proud of you for changing your body. I'm proud of you for showing up for yourself.",
+  "Whatever kind of day you're having, I'm still completely on your team.",
+  "You don't have to perform \"okay\" for me. I can hold the hard days too.",
+  "Distance hasn't made this feel smaller. If anything, it's made it clearer.",
+  "You are so deeply liked, not just loved — I actually like who you are.",
+  "If today felt like too much, that's allowed. Tomorrow gets a fresh page.",
+  "You make hard things feel more possible, just by being you.",
+  "I don't need you to have it all figured out. I just need you to keep going, at your pace.",
+  "You are safe to be exactly as tired, messy, or unsure as you actually are with me.",
+  "Nothing about today's mood changes how much I love you.",
+  "You're doing better than you think you are. I'd tell you if you weren't.",
+  "Small effort today still counts as effort. It all adds up.",
+  "You've gotten through 100% of your hardest days so far. That's a pretty good record.",
+  "Whatever you're building right now — a habit, strength, patience — it's working, even when it's slow.",
+  "You're allowed to be a beginner at something and still be proud of trying.",
+  "Today doesn't have to be your best day for it to still be a good one."
+];
+function hashStr(s){
+  let h = 0;
+  for(let i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function todaysNoteText(){
+  const pool = STATE.notes && STATE.notes.length ? STATE.notes : DAILY_NOTES;
+  return pool[hashStr(todayStr()) % pool.length];
+}
+
 /* ================= tabs ================= */
 const tabs = document.querySelectorAll("nav.tabs button");
 tabs.forEach(btn => btn.addEventListener("click", () => goTab(btn.dataset.tab)));
@@ -688,6 +754,7 @@ function goTab(name){
       requestAnimationFrame(() => { target.style.opacity = "1"; target.style.transform = "none"; });
     });
     if(name === "gallery"){ requestAnimationFrame(resizeGL); playEntranceFadeOnce(); }
+    if(name === "notes" || name === "workout") requestAnimationFrame(fixHiddenScratchCanvases);
   }
 
   if(current){
@@ -2581,12 +2648,21 @@ function buildTimeline(){
   }).join("");
 }
 
+document.getElementById("notesResetBtn").addEventListener("click", () => { buildNotes(); haptic(15); });
+
+// a single scratch card holding *today's* note, rendered into every
+// slot that wants it (the Notes tab and the workout calendar both show
+// the same one) — a fresh note unlocks once a day rather than her
+// having a whole grid to burn through in one sitting
+const DAILY_NOTE_SLOTS = ["notesGrid", "workoutDailyNote"];
 function buildNotes(){
-  const grid = document.getElementById("notesGrid");
-  grid.innerHTML = "";
-  STATE.notes.forEach(text => {
+  const text = todaysNoteText();
+  DAILY_NOTE_SLOTS.forEach(id => {
+    const slot = document.getElementById(id);
+    if(!slot) return;
+    slot.innerHTML = "";
     const card = document.createElement("div");
-    card.className = "scratch-card";
+    card.className = "scratch-card daily-note-card";
     const under = document.createElement("div");
     under.className = "scratch-under";
     under.textContent = text;
@@ -2594,15 +2670,26 @@ function buildNotes(){
     canvas.className = "scratch-canvas";
     card.appendChild(under);
     card.appendChild(canvas);
-    grid.appendChild(card);
+    slot.appendChild(card);
     setupScratch(card, canvas);
+  });
+}
+
+// redraws any scratch cover that got skipped because its tab was hidden
+// when the card was first built — a canvas defaults to 300x150 even when
+// never sized, so a dedicated flag (not canvas.width) tracks this
+function fixHiddenScratchCanvases(){
+  document.querySelectorAll(".scratch-canvas").forEach(c => {
+    if(!c._scratchSized && c._scratchResize) c._scratchResize();
   });
 }
 
 function setupScratch(card, canvas){
   function size(){
     const r = card.getBoundingClientRect();
-    canvas.width = r.width; canvas.height = r.height;
+    if(!r.width || !r.height) return; // hidden tab — nothing to size yet
+    canvas.width = r.width; canvas.height = r.height; // clears the canvas and resets composite mode
+    canvas._scratchSized = true;
     const ctx = canvas.getContext("2d");
     const grad = ctx.createLinearGradient(0,0,r.width,r.height);
     grad.addColorStop(0,"#d9a441"); grad.addColorStop(1,"#e8879b");
@@ -2612,12 +2699,16 @@ function setupScratch(card, canvas){
     ctx.font = "bold 13px Quicksand, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("scratch me", r.width/2, r.height/2);
+    ctx.globalCompositeOperation = "destination-out"; // so scratching afterward erases, not draws
   }
   size();
   window.addEventListener("resize", size);
+  // the card is often built while its tab is hidden (display:none), which
+  // gives it zero size and skips drawing the "scratch me" cover — stash
+  // the resize fn so a tab switch can redraw it once real dimensions exist
+  canvas._scratchResize = size;
 
   const ctx = canvas.getContext("2d");
-  ctx.globalCompositeOperation = "destination-out";
   let drawing = false;
   let cleared = 0;
 
@@ -3028,6 +3119,15 @@ document.getElementById("addTimelineBtn").addEventListener("click", async () => 
 
   const savedContent = await Store.loadContent();
   if(savedContent) Object.assign(STATE, savedContent);
+
+  // one-time top-up: fold the curated mindset/body-positivity pool into
+  // her saved notes (without touching anything she's already added) so
+  // the daily note has real variety instead of just the original 4
+  if(!STATE.notes || STATE.notes.length < 15){
+    const existing = new Set(STATE.notes || []);
+    STATE.notes = [...(STATE.notes || []), ...DAILY_NOTES.filter(n => !existing.has(n))];
+    Store.saveContent(STATE).catch(() => {});
+  }
 
   const savedProgress = await Store.loadProgress();
   streak = savedProgress.streak || 0;
