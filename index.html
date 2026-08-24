@@ -136,6 +136,33 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 }
 .peek-btn[hidden]{ display:none; }
 @keyframes pop{ from{ transform:translateX(-50%) scale(0.85); opacity:0; } to{ transform:translateX(-50%) scale(1); opacity:1; } }
+.goldfish-btn{
+  position:absolute; bottom:38px; left:50%; transform:translateX(-50%);
+  background:linear-gradient(180deg, #ffe58a 0%, #ffc93f 55%, #e69a1a 100%);
+  color:#5a3a04; border:none; border-top:1px solid rgba(255,255,255,0.85);
+  padding:11px 22px; border-radius:999px; font-family:'Quicksand',sans-serif; font-weight:700;
+  font-size:0.85rem; cursor:pointer;
+  box-shadow:0 8px 18px rgba(180,120,10,0.45), inset 0 1px 3px rgba(255,255,255,0.7), inset 0 -6px 8px rgba(120,70,0,0.25);
+  animation:pop .25s ease; z-index:5;
+}
+.goldfish-btn[hidden]{ display:none; }
+.goldfish-modal{
+  position:fixed; inset:0; background:rgba(20,14,12,0.88); z-index:200;
+  display:none; align-items:center; justify-content:center; padding:20px;
+}
+.goldfish-modal.open{ display:flex; }
+.goldfish-card{
+  background:var(--cream); border-radius:16px; padding:22px; max-width:420px; width:100%;
+  text-align:center; box-shadow:0 20px 50px rgba(0,0,0,0.5);
+}
+.goldfish-card .gf-type{
+  font-size:0.75rem; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft); margin-top:6px;
+}
+.goldfish-card .gf-text{ font-family:'Caveat',cursive; font-size:1.5rem; color:var(--rose-deep); line-height:1.35; margin:10px 0; }
+.goldfish-card .gf-bonus{
+  font-size:0.85rem; color:#8a5c05; background:#fff3d0; border-radius:10px; padding:8px 10px; margin-top:4px;
+}
+.goldfish-card .gf-bonus[hidden]{ display:none; }
 .joystick-zone{
   position:absolute; left:0; bottom:0; width:50%; height:50%; z-index:3; touch-action:none;
 }
@@ -402,6 +429,7 @@ nav.tabs button:hover{ transform:translateY(-1px); }
         <div class="gl-crosshair"></div>
         <div class="gl-hint">drag to look around · WASD or the joystick to walk</div>
         <button class="peek-btn" id="peekBtn" hidden>view this painting ✦</button>
+        <button class="goldfish-btn" id="goldFishBtn" hidden>✨ catch it!</button>
         <button class="mute-btn" id="muteBtn" aria-label="mute sound" title="mute sound">🔊</button>
         <button class="surface-btn" id="surfaceBtn">✕ surface</button>
         <div class="joystick-zone" id="joystickZone"></div>
@@ -539,6 +567,16 @@ nav.tabs button:hover{ transform:translateY(-1px); }
       <img id="lbImg" src="" alt="">
       <div class="cap" id="lbCap"></div>
       <button class="lb-close" id="lbClose">close</button>
+    </div>
+  </div>
+
+  <div class="goldfish-modal" id="goldFishModal">
+    <div class="goldfish-card">
+      <div class="script" style="font-size:1.6rem;color:var(--gold);">✦ golden fish caught ✦</div>
+      <div class="gf-type" id="gfType"></div>
+      <div class="gf-text" id="gfText"></div>
+      <div class="gf-bonus" id="gfBonus" hidden></div>
+      <button class="lb-close" id="gfClose">close</button>
     </div>
   </div>
 </div>
@@ -1119,6 +1157,124 @@ function updateFish(dt, tSec){
     fish.rotateY(Math.PI); // Object3D.lookAt faces +Z at the target for non-cameras; the model's nose is built at -Z
   });
 }
+
+/* ---------------- golden fish: a little chase-and-catch game ----------------
+   a rare golden fish spawns once a day out in the open water. it swims
+   lazily until she gets close, then darts away — chase it down and tap
+   "catch it!" once you're right on top of it. catching it reveals either
+   a long-distance date idea or a little redeemable love coupon; some
+   date ideas also carry a bonus that spawns the *next* golden fish much
+   closer to the entrance, an easy catch next time. */
+const GOLDEN_FISH_REWARDS = [
+  { type:"date", text:"Watch the same movie together on a video call tonight — popcorn optional, snuggling the screen mandatory." },
+  { type:"date", text:"Cook the same simple recipe at the same time on a call, then eat “together.”", bonus:true },
+  { type:"date", text:"Send each other one photo of your view right now, wherever you are." },
+  { type:"date", text:"Pick a song and slow dance on a video call, even if it's silly." },
+  { type:"date", text:"Write each other a letter by hand and mail it — the old-fashioned kind.", bonus:true },
+  { type:"date", text:"Play a dumb, easy online game together tonight." },
+  { type:"date", text:"Stargaze at the same time tonight, even under different skies." },
+  { type:"date", text:"Fall asleep on a call, phone propped up like you're actually next to each other.", bonus:true },
+  { type:"coupon", text:"💋 Redeem one kiss — good for whenever we're next together, no expiration." },
+  { type:"coupon", text:"🤗 Redeem one big hug — cash it in whenever you need it." },
+  { type:"coupon", text:"🎧 Redeem one voice note from me, any time you ask." },
+  { type:"coupon", text:"📞 Redeem an instant video call — I'll pick up, promise." },
+  { type:"coupon", text:"💌 Redeem one handwritten letter from me." },
+  { type:"coupon", text:"🥇 Redeem “I was right” — one free win in any argument, my treat." }
+];
+const GOLDFISH_NOTICE_RADIUS = 6.5, GOLDFISH_CATCH_RADIUS = 1.7;
+let goldenFish = null;
+let goldenFishCaughtDate = "";
+let goldenFishBonusPending = false;
+
+function makeGoldenFish(){
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffd23f, roughness: 0.22, metalness: 0.45, emissive: 0xff9d1f, emissiveIntensity: 0.55 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 14), mat);
+  body.scale.set(0.65, 0.85, 1.7);
+  group.add(body);
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.28, 3), mat);
+  tail.rotation.x = Math.PI/2; tail.rotation.z = Math.PI/2;
+  tail.position.set(0, 0, 0.38);
+  group.add(tail);
+  const glow = new THREE.PointLight(0xffd23f, 1.1, 6, 2);
+  group.add(glow);
+  return group;
+}
+
+function initGoldenFish(){
+  if(!scene || goldenFishCaughtDate === todayStr()) return; // already caught for today
+  goldenFish = makeGoldenFish();
+  const nearBonus = goldenFishBonusPending;
+  const radius = nearBonus
+    ? HALL_R + 3 + Math.random()*5             // an easy find right outside the entrance
+    : HALL_R + 12 + Math.random()*(WORLD_RADIUS - HALL_R - 18); // far out in the open water
+  const angle = Math.random()*Math.PI*2;
+  goldenFish.position.set(Math.sin(angle)*radius, 1.0 + Math.random()*2.5, Math.cos(angle)*radius);
+  goldenFish.userData.wanderAngle = Math.random()*Math.PI*2;
+  if(nearBonus) goldenFishBonusPending = false; // consumed on spawn
+  scene.add(goldenFish);
+}
+
+const _gfToPlayer = new THREE.Vector3();
+const _gfVel = new THREE.Vector3();
+const _upAxis = new THREE.Vector3(0, 1, 0);
+function updateGoldenFish(dt, tSec){
+  if(!goldenFish) return;
+  const pos = goldenFish.position;
+  _gfToPlayer.set(pos.x - camPos.x, 0, pos.z - camPos.z);
+  const dist = _gfToPlayer.length();
+
+  document.getElementById("goldFishBtn").hidden = dist >= GOLDFISH_CATCH_RADIUS;
+
+  if(dist < GOLDFISH_NOTICE_RADIUS && dist > 0.0001){
+    // flee, a touch faster than she can swim, with jitter so it isn't a dead sprint
+    _gfVel.copy(_gfToPlayer).normalize();
+    _gfVel.applyAxisAngle(_upAxis, Math.sin(tSec*1.7 + pos.x) * 0.6);
+    _gfVel.multiplyScalar(MOVE_SPEED * 1.15);
+  } else {
+    goldenFish.userData.wanderAngle += (Math.random()-0.5) * dt * 1.2;
+    _gfVel.set(Math.sin(goldenFish.userData.wanderAngle), 0, Math.cos(goldenFish.userData.wanderAngle)).multiplyScalar(0.6);
+  }
+
+  pos.addScaledVector(_gfVel, dt);
+  const distFromHall = Math.hypot(pos.x, pos.z);
+  if(distFromHall < HALL_R + 2){ const s = (HALL_R+2)/distFromHall; pos.x *= s; pos.z *= s; }
+  else if(distFromHall > WORLD_RADIUS - 2){ const s = (WORLD_RADIUS-2)/distFromHall; pos.x *= s; pos.z *= s; }
+  pos.y = Math.max(0.6, Math.min(4.5, pos.y + Math.sin(tSec*0.8 + pos.x)*0.01));
+
+  if(_gfVel.lengthSq() > 0.0001){
+    const lookTarget = _gfToPlayer.copy(pos).addScaledVector(_gfVel.clone().normalize(), 0.5);
+    goldenFish.lookAt(lookTarget);
+    goldenFish.rotateY(Math.PI);
+  }
+  goldenFish.scale.setScalar(1 + Math.sin(tSec*4) * 0.08);
+}
+
+function catchGoldenFish(){
+  if(!goldenFish) return;
+  scene.remove(goldenFish);
+  goldenFish = null;
+  document.getElementById("goldFishBtn").hidden = true;
+  goldenFishCaughtDate = todayStr();
+  const reward = GOLDEN_FISH_REWARDS[Math.floor(Math.random()*GOLDEN_FISH_REWARDS.length)];
+  if(reward.bonus) goldenFishBonusPending = true;
+  saveProgress();
+  haptic([20,50,20,50,80]);
+  showGoldenFishReward(reward);
+}
+document.getElementById("goldFishBtn").addEventListener("click", catchGoldenFish);
+
+function showGoldenFishReward(reward){
+  document.getElementById("gfType").textContent = reward.type === "date"
+    ? "a date idea, just for you two" : "redeem this, whenever you like";
+  document.getElementById("gfText").textContent = reward.text;
+  const bonusEl = document.getElementById("gfBonus");
+  bonusEl.hidden = !reward.bonus;
+  if(reward.bonus) bonusEl.textContent = "🎁 bonus: the next golden fish will swim in close — an easy catch.";
+  document.getElementById("goldFishModal").classList.add("open");
+}
+document.getElementById("gfClose").addEventListener("click", () => document.getElementById("goldFishModal").classList.remove("open"));
+document.getElementById("goldFishModal").addEventListener("click", e => { if(e.target.id==="goldFishModal") e.currentTarget.classList.remove("open"); });
 
 function updateKelp(t){
   kelpBlades.forEach(k => { k.obj.rotation.x = Math.sin(t*0.001*k.speed + k.phase) * k.amp; });
@@ -1841,6 +1997,7 @@ function initGL(){
   initSharks();
   initJellyfish();
   initMermaids();
+  initGoldenFish();
 
   resizeGL();
   window.addEventListener("resize", resizeGL);
@@ -2074,7 +2231,7 @@ function setupGalleryControls(){
   let lookPointerId = null, lastX=0, lastY=0;
   viewport.addEventListener("pointerdown", e => {
     GalleryAudio.init();
-    if(e.target.closest("#joystickZone") || e.target.closest(".peek-btn") || e.target.closest("#muteBtn") || e.target.closest("#surfaceBtn")) return;
+    if(e.target.closest("#joystickZone") || e.target.closest(".peek-btn") || e.target.closest("#muteBtn") || e.target.closest("#surfaceBtn") || e.target.closest("#goldFishBtn")) return;
     if(lookPointerId !== null) return; // already tracking a look-drag finger
     viewport.focus();
     lookPointerId = e.pointerId; lastX = e.clientX; lastY = e.clientY;
@@ -2319,6 +2476,7 @@ function tick(t){
   updateSharks(dt, t*0.001);
   updateJellyfish(dt, t*0.001);
   updateMermaids(dt, t*0.001);
+  updateGoldenFish(dt, t*0.001);
   updatePeek();
   updatePresenceAvatars(dt);
   broadcastPresence(t);
@@ -2420,7 +2578,7 @@ function setupScratch(card, canvas){
 /* ================= workout ================= */
 let streak = 0, claimed = 0;
 function renderStreak(){ document.getElementById("streakNum").textContent = streak; }
-async function saveProgress(){ await Store.saveProgress({ streak, claimed }); }
+async function saveProgress(){ await Store.saveProgress({ streak, claimed, goldenFishCaughtDate, goldenFishBonusPending }); }
 
 /* ================= workout calendar =================
    She picks her own workout from her own YouTube videos — no prescribed
@@ -2810,6 +2968,8 @@ document.getElementById("addTimelineBtn").addEventListener("click", async () => 
   const savedProgress = await Store.loadProgress();
   streak = savedProgress.streak || 0;
   claimed = savedProgress.claimed || 0;
+  goldenFishCaughtDate = savedProgress.goldenFishCaughtDate || "";
+  goldenFishBonusPending = !!savedProgress.goldenFishBonusPending;
 
   renderCounter();
   initGL();
@@ -2841,7 +3001,9 @@ document.getElementById("addTimelineBtn").addEventListener("click", async () => 
     get pitch(){ return pitch; },
     set pitch(v){ pitch = v; },
     get camPos(){ return camPos; },
-    get nearestArt(){ return nearestArt; }
+    get nearestArt(){ return nearestArt; },
+    get goldenFish(){ return goldenFish; },
+    catchGoldenFish
   };
 })();
 </script>
