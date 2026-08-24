@@ -709,6 +709,7 @@ const PALACE_GOLD = 0xd8b76a;    // gilded accents — arches, finials, lanterns
 const PALACE_GLASS = 0xdcf1fb;   // pale glassy blue-white for the domes
 
 let renderer, scene, camera, raycaster, hemiLight, keyLight;
+let sceneTarget, postScene, postCamera, postMaterial; // ink-outline + color-grade post pass
 let frameEntries = [];           // { group, art, hitMesh }
 let kelpBlades = [];              // swaying flora (rebuilt whenever the gallery changes)
 let palaceKelpBlades = [];        // swaying flora that's part of the static palace (built once)
@@ -823,6 +824,88 @@ function makeEnvironmentMap(renderer){
   pmrem.dispose();
   tex.dispose();
   return envMap;
+}
+
+// a hand-rolled two-pass post effect (no postprocessing addon vendored,
+// so this is the minimum EffectComposer-equivalent by hand): render the
+// gallery to an offscreen target with its depth captured, then a
+// full-screen shader reads that depth to ink an outline around every
+// silhouette and edge, and grades the color toward a moodier, more
+// graphic-novel palette — on top of the PBR lighting/materials, not
+// instead of them
+function setupOutlinePass(renderer, initialW, initialH){
+  const depthTexture = new THREE.DepthTexture(initialW, initialH);
+  depthTexture.type = THREE.UnsignedIntType;
+  const target = new THREE.WebGLRenderTarget(initialW, initialH, { depthTexture, depthBuffer: true });
+
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      tDiffuse: { value: null },
+      tDepth: { value: null },
+      resolution: { value: new THREE.Vector2(initialW, initialH) },
+      cameraNear: { value: 0.1 },
+      cameraFar: { value: 100 },
+      outlineColor: { value: new THREE.Color(0x0a1620) }
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main(){
+        vUv = uv;
+        gl_Position = vec4(position.xy, 0.0, 1.0);
+      }
+    `,
+    fragmentShader: `
+      precision highp float;
+      uniform sampler2D tDiffuse;
+      uniform sampler2D tDepth;
+      uniform vec2 resolution;
+      uniform float cameraNear;
+      uniform float cameraFar;
+      uniform vec3 outlineColor;
+      varying vec2 vUv;
+
+      float linearDepth(float depth){
+        float z = depth * 2.0 - 1.0;
+        return (2.0 * cameraNear * cameraFar) / (cameraFar + cameraNear - z * (cameraFar - cameraNear));
+      }
+
+      void main(){
+        vec2 texel = 1.0 / resolution;
+        float d0 = linearDepth(texture2D(tDepth, vUv).x);
+        float d1 = linearDepth(texture2D(tDepth, vUv + vec2(texel.x, 0.0)).x);
+        float d2 = linearDepth(texture2D(tDepth, vUv - vec2(texel.x, 0.0)).x);
+        float d3 = linearDepth(texture2D(tDepth, vUv + vec2(0.0, texel.y)).x);
+        float d4 = linearDepth(texture2D(tDepth, vUv - vec2(0.0, texel.y)).x);
+        float edge = (abs(d1-d0) + abs(d2-d0) + abs(d3-d0) + abs(d4-d0)) / max(d0, 1.0);
+        float outline = smoothstep(0.008, 0.03, edge);
+
+        vec3 c = texture2D(tDiffuse, vUv).rgb;
+
+        // gentle S-curve contrast, then a teal-shadow / warm-highlight
+        // split tone, then a soft vignette — a moody, graphic-novel grade
+        c = mix(c, c*c*(3.0-2.0*c), 0.35);
+        float luma = dot(c, vec3(0.299, 0.587, 0.114));
+        vec3 shadowTint = vec3(0.85, 0.98, 1.03);
+        vec3 highTint = vec3(1.06, 1.0, 0.9);
+        c *= mix(shadowTint, highTint, smoothstep(0.15, 0.85, luma));
+        float vig = smoothstep(0.9, 0.35, length(vUv - 0.5));
+        c *= mix(0.8, 1.0, vig);
+
+        c = mix(c, outlineColor, outline);
+        c = pow(clamp(c, 0.0, 1.0), vec3(1.0/2.2)); // this pass writes straight to canvas, so encode sRGB by hand
+
+        gl_FragColor = vec4(c, 1.0);
+      }
+    `,
+    depthTest: false,
+    depthWrite: false
+  });
+
+  const scenePass = new THREE.Scene();
+  const cameraPass = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  scenePass.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
+
+  return { target, material, scenePass, cameraPass };
 }
 
 function roundRectPath(ctx,x,y,w,h,r){
@@ -1587,6 +1670,12 @@ function initGL(){
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+  const outline = setupOutlinePass(renderer, canvas.clientWidth || 300, canvas.clientHeight || 300);
+  sceneTarget = outline.target;
+  postMaterial = outline.material;
+  postScene = outline.scenePass;
+  postCamera = outline.cameraPass;
+
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0xcdeef8);
   scene.fog = new THREE.Fog(0xcdeef8, 8, 42); // hazy up close, but far enough that sharks and jellyfish loom into view out in the open water instead of staying hidden
@@ -1661,6 +1750,13 @@ function resizeGL(){
   renderer.setSize(w, h, false);
   camera.aspect = w/h;
   camera.updateProjectionMatrix();
+  if(sceneTarget){
+    const pr = renderer.getPixelRatio();
+    sceneTarget.setSize(w*pr, h*pr);
+    postMaterial.uniforms.resolution.value.set(w*pr, h*pr);
+    postMaterial.uniforms.cameraNear.value = camera.near;
+    postMaterial.uniforms.cameraFar.value = camera.far;
+  }
 }
 
 // splits N slots across one or more open arcs (angle ranges), proportional
@@ -2107,7 +2203,12 @@ function tick(t){
   updatePeek();
   updatePresenceAvatars(dt);
   broadcastPresence(t);
+  renderer.setRenderTarget(sceneTarget);
   renderer.render(scene, camera);
+  renderer.setRenderTarget(null);
+  postMaterial.uniforms.tDiffuse.value = sceneTarget.texture;
+  postMaterial.uniforms.tDepth.value = sceneTarget.depthTexture;
+  renderer.render(postScene, postCamera);
   requestAnimationFrame(tick);
 }
 
