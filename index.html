@@ -708,7 +708,7 @@ const PALACE_TRIM = 0xecdcae;    // warm ivory trim
 const PALACE_GOLD = 0xd8b76a;    // gilded accents — arches, finials, lanterns
 const PALACE_GLASS = 0xdcf1fb;   // pale glassy blue-white for the domes
 
-let renderer, scene, camera, raycaster, toonGradient, hemiLight, keyLight;
+let renderer, scene, camera, raycaster, hemiLight, keyLight;
 let frameEntries = [];           // { group, art, hitMesh }
 let kelpBlades = [];              // swaying flora (rebuilt whenever the gallery changes)
 let palaceKelpBlades = [];        // swaying flora that's part of the static palace (built once)
@@ -801,14 +801,28 @@ const GalleryAudio = {
   }
 };
 
-function makeToonGradient(){
+// a soft sky-to-sea gradient, used only as an environment probe so the
+// gold, marble and glass pick up gentle reflections instead of reading
+// as flat matte color — no external HDR needed, just a tiny canvas
+function makeEnvironmentMap(renderer){
   const canvas = document.createElement("canvas");
-  canvas.width = 4; canvas.height = 1;
+  canvas.width = 8; canvas.height = 64;
   const ctx = canvas.getContext("2d");
-  ["#2f2530", "#7a5a6b", "#c99a7c", "#ffe9c9"].forEach((c,i) => { ctx.fillStyle = c; ctx.fillRect(i,0,1,1); });
+  const grad = ctx.createLinearGradient(0,0,0,64);
+  grad.addColorStop(0, "#ffffff");
+  grad.addColorStop(0.35, "#dff3ff");
+  grad.addColorStop(0.65, "#bfe6f2");
+  grad.addColorStop(1, "#5fa8bf");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,8,64);
   const tex = new THREE.CanvasTexture(canvas);
-  tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
-  return tex;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envMap = pmrem.fromEquirectangular(tex).texture;
+  pmrem.dispose();
+  tex.dispose();
+  return envMap;
 }
 
 function roundRectPath(ctx,x,y,w,h,r){
@@ -927,11 +941,11 @@ const FISH_COLORS = [0xff9d5c, 0xffe066, 0x5cd6e8, 0xc7f2ea, 0x4fb3d9, 0xff8fb3]
 
 function makeFish(color){
   const group = new THREE.Group();
-  const mat = new THREE.MeshToonMaterial({ color, gradientMap: toonGradient });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), mat);
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.02 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.16, 18, 14), mat);
   body.scale.set(0.65, 0.85, 1.7); // elongated along local -Z (nose) / +Z (tail end)
   group.add(body);
-  const tailMat = new THREE.MeshToonMaterial({ color, gradientMap: toonGradient });
+  const tailMat = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.02 });
   const tail = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.22, 3), tailMat);
   tail.rotation.x = Math.PI/2;
   tail.rotation.z = Math.PI/2;
@@ -985,15 +999,15 @@ function updateKelp(t){
    sense of scale without ever swimming close enough to feel threatening */
 function makeShark(){
   const group = new THREE.Group();
-  const mat = new THREE.MeshToonMaterial({ color: 0x7a8a94, gradientMap: toonGradient });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), mat);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x7a8a94, roughness: 0.5, metalness: 0.06 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.35, 18, 14), mat);
   body.scale.set(0.55, 0.65, 2.1);
   group.add(body);
   const tail = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.5, 3), mat);
   tail.rotation.x = Math.PI/2; tail.rotation.z = Math.PI/2;
   tail.position.set(0, 0, 0.65);
   group.add(tail);
-  const finMat = new THREE.MeshToonMaterial({ color: 0x5f6f7a, gradientMap: toonGradient });
+  const finMat = new THREE.MeshStandardMaterial({ color: 0x5f6f7a, roughness: 0.5, metalness: 0.06 });
   const dorsal = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.34, 3), finMat);
   dorsal.position.set(0, 0.32, -0.05);
   group.add(dorsal);
@@ -1034,11 +1048,11 @@ function updateSharks(dt, tSec){
    real pulse, tentacles sway independently */
 function makeJellyfish(color){
   const group = new THREE.Group();
-  const bellMat = new THREE.MeshToonMaterial({ color, gradientMap: toonGradient, transparent:true, opacity:0.62, side: THREE.DoubleSide });
-  const bell = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 8), bellMat);
+  const bellMat = new THREE.MeshPhysicalMaterial({ color, transparent:true, opacity:0.62, side: THREE.DoubleSide, roughness: 0.15, metalness: 0, transmission: 0.35, thickness: 0.3 });
+  const bell = new THREE.Mesh(new THREE.SphereGeometry(0.26, 20, 16), bellMat);
   bell.scale.set(1, 0.7, 1);
   group.add(bell);
-  const tentMat = new THREE.MeshToonMaterial({ color, gradientMap: toonGradient, transparent:true, opacity:0.5 });
+  const tentMat = new THREE.MeshStandardMaterial({ color, transparent:true, opacity:0.5, roughness: 0.2, metalness: 0 });
   const tentacles = [];
   for(let i=0;i<6;i++){
     const a = (i/6)*Math.PI*2;
@@ -1092,20 +1106,20 @@ function updateJellyfish(dt, tSec){
    feels empty even when she's just standing still looking around */
 function makeMermaid(skinColor, tailColor, hairColor){
   const group = new THREE.Group();
-  const skinMat = new THREE.MeshToonMaterial({ color: skinColor, gradientMap: toonGradient });
-  const tailMat = new THREE.MeshToonMaterial({ color: tailColor, gradientMap: toonGradient });
-  const hairMat = new THREE.MeshToonMaterial({ color: hairColor, gradientMap: toonGradient });
+  const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.5, metalness: 0.05 });
+  const tailMat = new THREE.MeshStandardMaterial({ color: tailColor, roughness: 0.3, metalness: 0.25 });
+  const hairMat = new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.6, metalness: 0 });
 
   const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.15, 0.32, 4, 8), skinMat);
   torso.rotation.x = Math.PI/2;
   torso.position.set(0, 0, -0.16);
   group.add(torso);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), skinMat);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 12), skinMat);
   head.position.set(0, 0.07, -0.44);
   group.add(head);
 
-  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), hairMat);
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.15, 14, 10), hairMat);
   hair.scale.set(1, 1.05, 1.5);
   hair.position.set(0, 0.1, -0.5);
   group.add(hair);
@@ -1240,6 +1254,7 @@ function addWallRing(parent, cx, cz, radius, doorAngles, mat){
     const seg = new THREE.Mesh(new THREE.BoxGeometry(chord, WALL_HEIGHT, 0.5), mat);
     seg.position.set(cx + Math.sin(mid)*radius, WALL_HEIGHT/2, cz + Math.cos(mid)*radius);
     seg.rotation.y = mid;
+    seg.castShadow = true; seg.receiveShadow = true;
     parent.add(seg);
   }
 }
@@ -1249,28 +1264,31 @@ function addDome(parent, cx, cz, radius, mat, goldMat){
   dome.position.set(cx, WALL_HEIGHT, cz);
   parent.add(dome);
   // a gilded rim where the dome meets the wall, and a finial spire at its apex
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(radius+0.3, 0.1, 8, 40), goldMat);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(radius+0.3, 0.1, 12, 56), goldMat);
   rim.rotation.x = Math.PI/2;
   rim.position.set(cx, WALL_HEIGHT, cz);
   parent.add(rim);
   const spireH = radius * 0.4;
-  const spire = new THREE.Mesh(new THREE.ConeGeometry(0.16, spireH, 8), goldMat);
+  const spire = new THREE.Mesh(new THREE.ConeGeometry(0.16, spireH, 14), goldMat);
   spire.position.set(cx, WALL_HEIGHT + radius + 0.3 + spireH/2, cz);
   parent.add(spire);
-  const finialBall = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), goldMat);
+  const finialBall = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 12), goldMat);
   finialBall.position.set(cx, WALL_HEIGHT + radius + 0.3 + spireH + 0.14, cz);
   parent.add(finialBall);
 }
 
 function addColumn(parent, x, z, h, mat, goldMat){
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.44, 0.16, 10), goldMat);
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.44, 0.16, 18), goldMat);
   base.position.set(x, 0.08, z);
+  base.castShadow = true; base.receiveShadow = true;
   parent.add(base);
-  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, h-0.16, 12), mat);
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, h-0.16, 18), mat);
   col.position.set(x, 0.16 + (h-0.16)/2, z);
+  col.castShadow = true; col.receiveShadow = true;
   parent.add(col);
-  const capital = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.24, 0.22, 10), goldMat);
+  const capital = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.24, 0.22, 18), goldMat);
   capital.position.set(x, h+0.11, z);
+  capital.castShadow = true;
   parent.add(capital);
   const abacus = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.1, 0.58), goldMat);
   abacus.position.set(x, h + 0.27, z);
@@ -1280,7 +1298,7 @@ function addColumn(parent, x, z, h, mat, goldMat){
 // a gilded semicircular archway framing a doorway threshold, its span
 // aligned tangent to the wall and its rise pointing straight up
 function addArch(parent, cx, cz, wallRadius, angle, spanRadius, tubeRadius, mat){
-  const arch = new THREE.Mesh(new THREE.TorusGeometry(spanRadius, tubeRadius, 8, 28, Math.PI), mat);
+  const arch = new THREE.Mesh(new THREE.TorusGeometry(spanRadius, tubeRadius, 12, 40, Math.PI), mat);
   arch.position.set(cx + Math.sin(angle)*wallRadius, 0, cz + Math.cos(angle)*wallRadius);
   arch.rotation.y = angle;
   parent.add(arch);
@@ -1298,10 +1316,10 @@ function addArch(parent, cx, cz, wallRadius, angle, spanRadius, tubeRadius, mat)
 
 // a slender gilded lantern post with a warm glowing bulb on top
 function addLanternPost(parent, x, z, h, goldMat){
-  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, h, 6), goldMat);
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, h, 12), goldMat);
   post.position.set(x, h/2, z);
   parent.add(post);
-  const cage = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshToonMaterial({ color: 0xfff2c9, gradientMap: toonGradient, transparent:true, opacity:0.85 }));
+  const cage = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 10), new THREE.MeshStandardMaterial({ color: 0xfff2c9, transparent:true, opacity:0.85, roughness: 0.3, metalness: 0, emissive: 0xffdb8a, emissiveIntensity: 1.4 }));
   cage.position.set(x, h+0.16, z);
   parent.add(cage);
   const glow = new THREE.PointLight(0xffdf9e, 0.55, 5, 2);
@@ -1333,7 +1351,7 @@ function addEntranceUrn(parent, x, z, goldMat){
   parent.add(lip);
   for(let k=0;k<4;k++){
     const h = 1.3 + Math.random()*0.7;
-    const bladeMat = new THREE.MeshToonMaterial({ color: KELP_COLORS[k % KELP_COLORS.length], gradientMap: toonGradient, side: THREE.DoubleSide });
+    const bladeMat = new THREE.MeshStandardMaterial({ color: KELP_COLORS[k % KELP_COLORS.length], side: THREE.DoubleSide, roughness: 0.5, metalness: 0.03 });
     const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.18, h), bladeMat);
     blade.geometry.translate(0, h/2, 0);
     const pivot = new THREE.Group();
@@ -1347,14 +1365,14 @@ function addEntranceUrn(parent, x, z, goldMat){
 
 // a little scatter of pearls and a shell beside a threshold or corner
 function addPearlCluster(parent, x, z){
-  const pearlMat = new THREE.MeshToonMaterial({ color: 0xfaf5ea, gradientMap: toonGradient });
+  const pearlMat = new THREE.MeshPhysicalMaterial({ color: 0xfaf5ea, roughness: 0.1, metalness: 0.1, clearcoat: 0.6, clearcoatRoughness: 0.2 });
   for(let i=0;i<4;i++){
     const p = new THREE.Mesh(new THREE.SphereGeometry(0.06+Math.random()*0.05, 8, 6), pearlMat);
     p.position.set(x+(Math.random()-0.5)*0.5, 0.06, z+(Math.random()-0.5)*0.5);
     parent.add(p);
   }
-  const shellMat = new THREE.MeshToonMaterial({ color: 0xffe3ec, gradientMap: toonGradient, side: THREE.DoubleSide });
-  const shell = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 6, 0, Math.PI*2, 0, Math.PI/2), shellMat);
+  const shellMat = new THREE.MeshStandardMaterial({ color: 0xffe3ec, side: THREE.DoubleSide, roughness: 0.3, metalness: 0.08 });
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 10, 0, Math.PI*2, 0, Math.PI/2), shellMat);
   shell.scale.set(1, 0.55, 1);
   shell.rotation.z = Math.random()*Math.PI;
   shell.position.set(x, 0.03, z);
@@ -1365,12 +1383,12 @@ function buildPalace(){
   if(palaceGroup) scene.remove(palaceGroup);
   palaceGroup = new THREE.Group();
 
-  const wallMat = new THREE.MeshToonMaterial({ color: PALACE_STONE, gradientMap: toonGradient });
-  const trimMat = new THREE.MeshToonMaterial({ color: PALACE_TRIM, gradientMap: toonGradient });
-  const goldMat = new THREE.MeshToonMaterial({ color: PALACE_GOLD, gradientMap: toonGradient });
-  const domeMat = new THREE.MeshToonMaterial({ color: PALACE_GLASS, gradientMap: toonGradient, side: THREE.DoubleSide, transparent:true, opacity:0.88 });
-  const marbleFloorMat = new THREE.MeshToonMaterial({ map: makePalaceFloorTexture(), gradientMap: toonGradient });
-  const hallwayFloorMat = new THREE.MeshToonMaterial({ color: 0xf1ead8, gradientMap: toonGradient });
+  const wallMat = new THREE.MeshStandardMaterial({ color: PALACE_STONE, roughness: 0.5, metalness: 0.03 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: PALACE_TRIM, roughness: 0.45, metalness: 0.06 });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xe6c581, roughness: 0.32, metalness: 0.55, envMapIntensity: 1.6 });
+  const domeMat = new THREE.MeshPhysicalMaterial({ color: PALACE_GLASS, side: THREE.DoubleSide, transparent:true, roughness: 0.06, metalness: 0, transmission: 0.82, thickness: 0.6, ior: 1.3, opacity: 0.96 });
+  const marbleFloorMat = new THREE.MeshStandardMaterial({ map: makePalaceFloorTexture(), roughness: 0.38, metalness: 0.04 });
+  const hallwayFloorMat = new THREE.MeshStandardMaterial({ color: 0xf1ead8, roughness: 0.4, metalness: 0.04 });
 
   // great hall: walls with a south archway (open water) and a north
   // archway (into the hallway), a pale glass dome with a gilded rim
@@ -1401,6 +1419,7 @@ function buildPalace(){
   const hallwayFloor = new THREE.Mesh(new THREE.PlaneGeometry(HALLWAY_HALF_W*2, HALLWAY_LEN), hallwayFloorMat);
   hallwayFloor.rotation.x = -Math.PI/2;
   hallwayFloor.position.set(0, 0.01, (hallZ0+hallZ1)/2);
+  hallwayFloor.receiveShadow = true;
   palaceGroup.add(hallwayFloor);
   const centerline = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.012, HALLWAY_LEN), goldMat);
   centerline.position.set(0, 0.017, (hallZ0+hallZ1)/2);
@@ -1430,6 +1449,7 @@ function buildPalace(){
   const sanctumFloor = new THREE.Mesh(new THREE.CircleGeometry(SANCTUM_R+0.2, 40), marbleFloorMat);
   sanctumFloor.rotation.x = -Math.PI/2;
   sanctumFloor.position.set(0, 0.012, SANCTUM_CZ);
+  sanctumFloor.receiveShadow = true;
   palaceGroup.add(sanctumFloor);
   addPearlCluster(palaceGroup, -SANCTUM_R+1.5, SANCTUM_CZ);
   addPearlCluster(palaceGroup, SANCTUM_R-1.5, SANCTUM_CZ);
@@ -1559,33 +1579,48 @@ function initGL(){
   }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  // physically-based materials read as flat plastic without a real tonemap
+  // and some shadow — this is what turns the low-poly shapes into
+  // something with actual weight and shine instead of a grey blockout
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.3;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0xcdeef8);
   scene.fog = new THREE.Fog(0xcdeef8, 8, 42); // hazy up close, but far enough that sharks and jellyfish loom into view out in the open water instead of staying hidden
+  scene.environment = makeEnvironmentMap(renderer); // soft sky/sea reflections for the gold, marble and glass
 
   camera = new THREE.PerspectiveCamera(62, 1, 0.1, 100);
   raycaster = new THREE.Raycaster();
-  toonGradient = makeToonGradient();
 
-  hemiLight = new THREE.HemisphereLight(0xeaf8ff, 0x1f6b78, 1.2);
+  hemiLight = new THREE.HemisphereLight(0xeaf8ff, 0x1f6b78, 1.9);
   scene.add(hemiLight);
-  keyLight = new THREE.DirectionalLight(0xffffff, 1.05);
-  keyLight.position.set(6, 10, 4);
+  keyLight = new THREE.DirectionalLight(0xffffff, 2.4);
+  keyLight.position.set(6, 14, 4);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(1024, 1024);
+  keyLight.shadow.camera.left = -26; keyLight.shadow.camera.right = 26;
+  keyLight.shadow.camera.top = 26; keyLight.shadow.camera.bottom = -26;
+  keyLight.shadow.camera.near = 2; keyLight.shadow.camera.far = 40;
+  keyLight.shadow.bias = -0.0015;
   scene.add(keyLight);
   applyDayNightLighting();
 
   // an endless open ocean seabed outside, with the great hall's pale
   // marble floor showing through where the palace stands
-  const seabedMat = new THREE.MeshToonMaterial({ map: makeSeabedTexture(), gradientMap: toonGradient });
+  const seabedMat = new THREE.MeshStandardMaterial({ map: makeSeabedTexture(), roughness: 0.85, metalness: 0 });
   const seabed = new THREE.Mesh(new THREE.PlaneGeometry(FLOOR_RADIUS*2, FLOOR_RADIUS*2), seabedMat);
   seabed.rotation.x = -Math.PI/2;
+  seabed.receiveShadow = true;
   scene.add(seabed);
 
-  const clearingMat = new THREE.MeshToonMaterial({ map: makePalaceFloorTexture(), gradientMap: toonGradient, transparent:true });
+  const clearingMat = new THREE.MeshStandardMaterial({ map: makePalaceFloorTexture(), transparent:true, roughness: 0.38, metalness: 0.04 });
   const clearing = new THREE.Mesh(new THREE.CircleGeometry(ROOM_RADIUS+1.5, 48), clearingMat);
   clearing.rotation.x = -Math.PI/2;
   clearing.position.y = 0.01;
+  clearing.receiveShadow = true;
   scene.add(clearing);
 
   camera.position.copy(camPos);
@@ -1653,12 +1688,12 @@ function buildFramePedestal(art, x, z, cx, cz, colorSeed){
   group.position.set(x, 2.05, z);
   group.lookAt(cx, 2.05, cz);
 
-  const pedestalMat = new THREE.MeshToonMaterial({ color: 0x9a8478, gradientMap: toonGradient });
-  const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.32, 1.05, 8), pedestalMat);
+  const pedestalMat = new THREE.MeshStandardMaterial({ color: 0x9a8478, roughness: 0.7, metalness: 0.02 });
+  const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.32, 1.05, 14), pedestalMat);
   pedestal.position.set(0, -1.525, 0);
   group.add(pedestal);
 
-  const borderMat = new THREE.MeshToonMaterial({ color: 0xc7dde2, gradientMap: toonGradient });
+  const borderMat = new THREE.MeshStandardMaterial({ color: 0xc7dde2, roughness: 0.35, metalness: 0.08 });
   group.add(new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.0, 0.08), borderMat));
 
   let hitMesh;
@@ -1667,7 +1702,7 @@ function buildFramePedestal(art, x, z, cx, cz, colorSeed){
     tex.colorSpace = THREE.SRGBColorSpace;
     hitMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.72,1.72), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
   } else {
-    hitMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.72,1.72), new THREE.MeshToonMaterial({ color: 0xeaf8fb, gradientMap: toonGradient, side: THREE.DoubleSide }));
+    hitMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.72,1.72), new THREE.MeshStandardMaterial({ color: 0xeaf8fb, side: THREE.DoubleSide, roughness: 0.3, metalness: 0.05 }));
   }
   hitMesh.position.z = 0.05;
   group.add(hitMesh);
@@ -1695,7 +1730,7 @@ function buildFramePedestal(art, x, z, cx, cz, colorSeed){
   const kelpColor = KELP_COLORS[colorSeed % KELP_COLORS.length];
   for(let k=0;k<3;k++){
     const h = 1.1 + Math.random()*0.9;
-    const bladeMat = new THREE.MeshToonMaterial({ color: kelpColor, gradientMap: toonGradient, side: THREE.DoubleSide });
+    const bladeMat = new THREE.MeshStandardMaterial({ color: kelpColor, side: THREE.DoubleSide, roughness: 0.5, metalness: 0.03 });
     const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.16, h), bladeMat);
     blade.geometry.translate(0, h/2, 0); // pivot at the base so it sways like it's rooted
     const pivot = new THREE.Group();
@@ -1706,8 +1741,8 @@ function buildFramePedestal(art, x, z, cx, cz, colorSeed){
     kelpBlades.push({ obj: pivot, phase: Math.random()*Math.PI*2, speed: 0.7+Math.random()*0.5, amp: 0.12+Math.random()*0.08 });
   }
   for(let c=0;c<4;c++){
-    const coralMat = new THREE.MeshToonMaterial({ color: CORAL_COLORS[(colorSeed+c) % CORAL_COLORS.length], gradientMap: toonGradient });
-    const piece = new THREE.Mesh(new THREE.SphereGeometry(0.1+Math.random()*0.1, 6, 5), coralMat);
+    const coralMat = new THREE.MeshStandardMaterial({ color: CORAL_COLORS[(colorSeed+c) % CORAL_COLORS.length], roughness: 0.45, metalness: 0.05 });
+    const piece = new THREE.Mesh(new THREE.SphereGeometry(0.1+Math.random()*0.1, 10, 8), coralMat);
     piece.position.set((Math.random()-0.5)*0.5, 0.08+Math.random()*0.18, (Math.random()-0.5)*0.5);
     decorGroup.add(piece);
   }
@@ -1722,7 +1757,7 @@ function buildWallFrame(art, x, z, faceYaw){
   group.position.set(x, 2.05, z);
   group.rotation.y = faceYaw;
 
-  const borderMat = new THREE.MeshToonMaterial({ color: 0xc7dde2, gradientMap: toonGradient });
+  const borderMat = new THREE.MeshStandardMaterial({ color: 0xc7dde2, roughness: 0.35, metalness: 0.08 });
   group.add(new THREE.Mesh(new THREE.BoxGeometry(1.55, 1.55, 0.08), borderMat));
 
   let hitMesh;
@@ -1731,7 +1766,7 @@ function buildWallFrame(art, x, z, faceYaw){
     tex.colorSpace = THREE.SRGBColorSpace;
     hitMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.3,1.3), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
   } else {
-    hitMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.3,1.3), new THREE.MeshToonMaterial({ color: 0xeaf8fb, gradientMap: toonGradient, side: THREE.DoubleSide }));
+    hitMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.3,1.3), new THREE.MeshStandardMaterial({ color: 0xeaf8fb, side: THREE.DoubleSide, roughness: 0.3, metalness: 0.05 }));
   }
   hitMesh.position.z = 0.05;
   group.add(hitMesh);
@@ -1922,11 +1957,11 @@ let heartTexCache = null;
 
 function createAvatar(){
   const group = new THREE.Group();
-  const bodyMat = new THREE.MeshToonMaterial({ color: 0xe8879b, gradientMap: toonGradient });
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe8879b, roughness: 0.4, metalness: 0.05 });
   const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.26, 0.85, 4, 8), bodyMat);
   body.position.y = 0.72;
   group.add(body);
-  const headMat = new THREE.MeshToonMaterial({ color: 0xffe3c4, gradientMap: toonGradient });
+  const headMat = new THREE.MeshStandardMaterial({ color: 0xffe3c4, roughness: 0.4, metalness: 0.05 });
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 14, 10), headMat);
   head.position.y = 1.38;
   group.add(head);
