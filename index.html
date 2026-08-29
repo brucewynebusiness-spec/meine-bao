@@ -362,25 +362,6 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 }
 .gl-viewport.immersive .surface-btn{ display:block; }
 
-/* ---------- memory timeline ---------- */
-.timeline{ position:relative; padding-left:22px; }
-.timeline::before{
-  content:""; position:absolute; left:6px; top:4px; bottom:4px; width:2px;
-  background:linear-gradient(var(--rose), var(--gold));
-  opacity:0.5;
-}
-.timeline-entry{ position:relative; margin-bottom:20px; }
-.timeline-entry::before{
-  content:""; position:absolute; left:-22px; top:4px; width:12px; height:12px; border-radius:50%;
-  background:var(--rose); border:2px solid var(--cream); box-shadow:0 0 0 2px var(--rose);
-}
-.timeline-date{ font-family:'Caveat',cursive; font-size:1.15rem; color:var(--rose-deep); margin-bottom:2px; }
-.timeline-card{
-  background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 14px;
-  box-shadow:0 6px 14px var(--shadow);
-}
-.timeline-card img{ width:100%; border-radius:10px; margin-top:8px; }
-.timeline-empty{ color:var(--ink-soft); font-size:0.85rem; text-align:center; padding:20px 0; }
 </style>
 </head>
 <body>
@@ -400,7 +381,6 @@ nav.tabs button:hover{ transform:translateY(-1px); }
     <button data-tab="notes">Notes</button>
     <button data-tab="workout">Workout</button>
     <button data-tab="sketch">Sketch</button>
-    <button data-tab="timeline">Timeline</button>
   </nav>
 
   <!-- HOME -->
@@ -516,15 +496,6 @@ nav.tabs button:hover{ transform:translateY(-1px); }
     <p id="sketchStatus" class="status-msg"></p>
   </section>
 
-  <!-- TIMELINE -->
-  <section class="page" id="page-timeline">
-    <h2 class="script" style="margin:0 0 10px;">our story so far</h2>
-    <p style="color:var(--ink-soft);font-size:0.85rem;margin-top:-6px;">
-      A little scroll through the memories, in order.
-    </p>
-    <div class="timeline" id="timelineList"></div>
-  </section>
-
   <div class="admin-link"><a href="#" id="adminToggle">♡ admin</a></div>
   <section class="page" id="page-admin" style="padding:0 20px;">
     <div class="admin-panel">
@@ -562,16 +533,6 @@ nav.tabs button:hover{ transform:translateY(-1px); }
       <textarea id="rewardCapInput" rows="2" placeholder="what you want her to see when she unlocks this"></textarea>
       <button class="save-btn" id="addRewardBtn">queue reward</button>
       <div class="admin-list" id="rewardAdminList"></div>
-
-      <h3 style="margin-top:22px;">Timeline memory</h3>
-      <label>Date</label>
-      <input type="text" id="tlDateInput" placeholder="YYYY-MM-DD">
-      <label>Text</label>
-      <textarea id="tlTextInput" rows="2" placeholder="what happened / how you felt"></textarea>
-      <label>Photo (optional)</label>
-      <input type="file" id="tlImgInput" accept="image/*">
-      <button class="save-btn" id="addTimelineBtn">add memory</button>
-      <div class="admin-list" id="timelineAdminList"></div>
 
       <p class="status-msg" id="adminStatus"></p>
     </div>
@@ -692,8 +653,7 @@ const STATE = {
   rewards: [
     { type: "text", content: "", caption: "You did it! Here's a start: I love you more than words fit on a screen. More rewards coming as you add them 🤍" }
   ],
-  workoutCalendar: {}, // "YYYY-MM-DD" -> { videoUrl, completed, rewardClaimed }
-  timeline: [] // { date: "YYYY-MM-DD", text, img? } — kept sorted by date when rendered
+  workoutCalendar: {} // "YYYY-MM-DD" -> { videoUrl, completed, rewardClaimed }
 };
 
 /* one curated pool feeding the daily scratch note — mindset, body
@@ -772,6 +732,7 @@ function goTab(name){
     });
     if(name === "gallery"){ requestAnimationFrame(resizeGL); playEntranceFadeOnce(); }
     if(name === "notes" || name === "workout") requestAnimationFrame(fixHiddenScratchCanvases);
+    if(name === "sketch") requestAnimationFrame(fitSketchCanvas);
   }
 
   if(current){
@@ -2645,25 +2606,6 @@ document.getElementById("lbClose").addEventListener("click", () => document.getE
 document.getElementById("lightbox").addEventListener("click", e => { if(e.target.id==="lightbox") e.currentTarget.classList.remove("open"); });
 
 /* ================= notes: scratch cards ================= */
-/* ================= memory timeline ================= */
-function buildTimeline(){
-  const list = document.getElementById("timelineList");
-  const entries = [...STATE.timeline].sort((a,b) => (a.date||"").localeCompare(b.date||""));
-  if(!entries.length){
-    list.innerHTML = `<p class="timeline-empty">no memories added yet — the admin page can add the first one.</p>`;
-    return;
-  }
-  list.innerHTML = entries.map(e => {
-    const dateLabel = e.date
-      ? new Date(e.date+"T00:00:00").toLocaleDateString(undefined,{year:"numeric",month:"long",day:"numeric"})
-      : "";
-    const img = e.img ? `<img src="${e.img}" alt="">` : "";
-    return `<div class="timeline-entry">
-      <div class="timeline-date">${dateLabel}</div>
-      <div class="timeline-card">${(e.text||"").replace(/</g,"&lt;")}${img}</div>
-    </div>`;
-  }).join("");
-}
 
 document.getElementById("notesResetBtn").addEventListener("click", () => { buildNotes(); haptic(15); });
 
@@ -3040,10 +2982,6 @@ function renderAdminLists(){
     `<div class="row"><span>[${r.type}] ${(r.caption||"").slice(0,32)}</span><button class="del" data-kind="rewards" data-i="${i}">remove</button></div>`
   ).join("");
 
-  document.getElementById("timelineAdminList").innerHTML = STATE.timeline.map((e,i) =>
-    `<div class="row"><span>${e.date||"?"} — ${(e.text||"").slice(0,28)}</span><button class="del" data-kind="timeline" data-i="${i}">remove</button></div>`
-  ).join("");
-
   document.querySelectorAll(".admin-list .del").forEach(btn => {
     btn.addEventListener("click", async () => {
       STATE[btn.dataset.kind].splice(Number(btn.dataset.i), 1);
@@ -3114,20 +3052,6 @@ document.getElementById("addRewardBtn").addEventListener("click", async () => {
   if(!ok){ STATE.rewards.pop(); renderAdminLists(); }
 });
 
-document.getElementById("addTimelineBtn").addEventListener("click", async () => {
-  const date = document.getElementById("tlDateInput").value.trim();
-  const text = document.getElementById("tlTextInput").value.trim();
-  const fileInput = document.getElementById("tlImgInput");
-  if(!date || !text){ document.getElementById("adminStatus").textContent = "add a date and some text first."; return; }
-  const img = fileInput.files[0] ? await imageFileToCompressedDataURL(fileInput.files[0]) : null;
-  STATE.timeline.push({ date, text, img });
-  document.getElementById("tlTextInput").value = "";
-  renderAdminLists();
-  buildTimeline();
-  const ok = await publishState("memory added.");
-  if(!ok){ STATE.timeline.pop(); renderAdminLists(); buildTimeline(); }
-});
-
 /* ================= boot ================= */
 (async function init(){
   document.getElementById("cloudBanner").textContent = FIREBASE_ENABLED
@@ -3168,8 +3092,6 @@ document.getElementById("addTimelineBtn").addEventListener("click", async () => 
   renderStreak();
   if(!STATE.workoutCalendar) STATE.workoutCalendar = {};
   buildCalendar();
-  if(!STATE.timeline) STATE.timeline = [];
-  buildTimeline();
   fitSketchCanvas();
   renderAdminLists();
 
