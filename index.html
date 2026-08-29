@@ -377,6 +377,32 @@ nav.tabs button:hover{ transform:translateY(-1px); }
   background:var(--bg2); color:var(--ink-soft); border:1px solid var(--line);
 }
 
+/* ---------- Face lock (smile to enter) ---------- */
+.face-lock{
+  position:fixed; inset:0; z-index:9999;
+  background:radial-gradient(ellipse at 50% 30%, #2a2050, #120c28 75%);
+  display:flex; align-items:center; justify-content:center; padding:20px;
+  transition:opacity .5s ease; opacity:1;
+}
+.face-lock.gone{ opacity:0; pointer-events:none; }
+.face-lock-card{
+  background:var(--cream); border-radius:20px; padding:22px; max-width:380px; width:100%;
+  text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.6);
+}
+.face-lock-title{ font-size:1.5rem; color:var(--gold); margin-bottom:6px; }
+.face-lock-prompt{ font-size:0.95rem; color:var(--ink); line-height:1.4; margin-bottom:14px; }
+.face-lock-video-wrap{
+  position:relative; width:100%; aspect-ratio:4/3; border-radius:14px; overflow:hidden;
+  background:#0c0c14; margin-bottom:10px;
+}
+.face-lock-video-wrap video{ width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
+.face-lock-bypass{
+  position:absolute; bottom:14px; right:16px; border:none; background:rgba(255,255,255,0.08);
+  color:rgba(255,255,255,0.35); width:34px; height:34px; border-radius:50%; font-size:1rem;
+  cursor:pointer;
+}
+.face-lock-bypass:hover{ color:rgba(255,255,255,0.7); background:rgba(255,255,255,0.15); }
+
 /* ---------- App splash (first load only) ---------- */
 #appSplash{
   position:fixed; inset:0; z-index:500;
@@ -424,6 +450,21 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 </style>
 </head>
 <body>
+<div id="faceLock" class="face-lock">
+  <button id="faceLockBypass" class="face-lock-bypass" title="owner bypass">🔑</button>
+  <div class="face-lock-card">
+    <div class="script face-lock-title">meine bao's world</div>
+    <p class="face-lock-prompt">Are you calm or mad right now? 😏<br>Prove it — smile for me before I let you in.</p>
+    <div class="face-lock-video-wrap">
+      <video id="faceLockVideo" autoplay playsinline muted></video>
+      <canvas id="faceLockCanvas" hidden></canvas>
+    </div>
+    <p class="status-msg" id="faceLockStatus"></p>
+    <button id="faceLockOpenCam" class="save-btn">📷 turn on the camera</button>
+    <button id="faceLockCapture" class="save-btn" hidden>📸 take the picture</button>
+    <button id="faceLockRetry" class="qbtn" hidden>try again</button>
+  </div>
+</div>
 <div id="appSplash">
   <div class="splash-heart">🤍</div>
   <div class="splash-label">opening your world…</div>
@@ -645,6 +686,107 @@ let db = null;
 if(FIREBASE_ENABLED){
   firebase.initializeApp(window.FIREBASE_CONFIG);
   db = firebase.firestore();
+}
+
+/* ================= face lock: smile to enter =================
+   gates the whole app behind a selfie + smile check, using face-api.js
+   (loaded from a CDN — needs an internet connection the first time).
+   unlocks for the rest of this browser tab's session once she smiles,
+   or immediately via the bypass button (for the person who built this). */
+const FACE_UNLOCK_KEY = "obw_face_unlocked";
+const FACE_API_SRC = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js";
+const FACE_MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model";
+let faceApiLoadPromise = null;
+
+function isFaceUnlocked(){
+  return sessionStorage.getItem(FACE_UNLOCK_KEY) === "1";
+}
+function unlockFaceLock(){
+  sessionStorage.setItem(FACE_UNLOCK_KEY, "1");
+  const lock = document.getElementById("faceLock");
+  lock.classList.add("gone");
+  const video = document.getElementById("faceLockVideo");
+  if(video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
+}
+
+function loadFaceApi(){
+  if(faceApiLoadPromise) return faceApiLoadPromise;
+  faceApiLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = FACE_API_SRC;
+    script.onload = () => {
+      Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL),
+        faceapi.nets.faceExpressionNet.loadFromUri(FACE_MODEL_URL)
+      ]).then(resolve).catch(reject);
+    };
+    script.onerror = () => reject(new Error("face-api.js failed to load"));
+    document.head.appendChild(script);
+  });
+  return faceApiLoadPromise;
+}
+
+function initFaceLock(){
+  const lock = document.getElementById("faceLock");
+  if(isFaceUnlocked()){ lock.classList.add("gone"); return; }
+
+  const status = document.getElementById("faceLockStatus");
+  const openBtn = document.getElementById("faceLockOpenCam");
+  const captureBtn = document.getElementById("faceLockCapture");
+  const retryBtn = document.getElementById("faceLockRetry");
+  const video = document.getElementById("faceLockVideo");
+  const canvas = document.getElementById("faceLockCanvas");
+
+  document.getElementById("faceLockBypass").addEventListener("click", unlockFaceLock);
+
+  openBtn.addEventListener("click", async () => {
+    status.textContent = "asking for camera access…";
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+      video.srcObject = stream;
+      openBtn.hidden = true;
+      captureBtn.hidden = false;
+      status.textContent = "";
+      loadFaceApi().catch(() => {}); // warm it up in the background while she gets ready
+    }catch(e){
+      status.textContent = "couldn't get the camera — check your browser's camera permission and try again.";
+    }
+  });
+
+  async function checkSmile(){
+    status.textContent = "checking…";
+    captureBtn.hidden = true;
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    try{
+      await loadFaceApi();
+      const result = await faceapi
+        .detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions())
+        .withFaceExpressions();
+      if(!result){
+        status.textContent = "couldn't find your face in frame — move in a little and try again.";
+        retryBtn.hidden = false;
+        return;
+      }
+      if(result.expressions.happy > 0.5){
+        status.textContent = "there she is 🤍 welcome in.";
+        haptic([20,40,20,60]);
+        setTimeout(unlockFaceLock, 700);
+      } else {
+        status.textContent = "hmm, not buying it — try again? 😏";
+        retryBtn.hidden = false;
+      }
+    }catch(e){
+      status.textContent = "couldn't check that just now — try again, or use the key in the corner if it keeps failing.";
+      retryBtn.hidden = false;
+    }
+  }
+  captureBtn.addEventListener("click", checkSmile);
+  retryBtn.addEventListener("click", () => {
+    retryBtn.hidden = true;
+    captureBtn.hidden = false;
+    status.textContent = "";
+  });
 }
 
 const Store = {
@@ -3199,6 +3341,8 @@ document.getElementById("addRewardBtn").addEventListener("click", async () => {
 });
 
 /* ================= boot ================= */
+initFaceLock();
+
 (async function init(){
   document.getElementById("cloudBanner").textContent = FIREBASE_ENABLED
     ? "☁️ connected — content and progress sync across every device."
