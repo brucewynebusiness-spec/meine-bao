@@ -207,6 +207,65 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 
 /* ---------- Notes: scratch cards ---------- */
 .daily-note-slot{ max-width:300px; margin:0 auto; }
+
+/* ---------- anniversary scratch card + meteor shower ---------- */
+.anniv-wrap{ margin-bottom:18px; text-align:center; }
+.anniv-heading{ font-size:1.4rem; color:var(--gold); margin-bottom:10px; }
+.anniv-slot{ max-width:320px; }
+.anniv-slot .scratch-card{
+  box-shadow:0 10px 28px rgba(180,130,20,0.35), 0 0 0 3px rgba(255,214,140,0.6);
+}
+.anniv-slot .scratch-under{
+  background:linear-gradient(160deg, #1b1440, #3a2a66 55%, #5c3a7a);
+  color:#ffe9b8; font-size:1.5rem; text-shadow:0 0 10px rgba(255,214,140,0.6);
+}
+
+.meteor-shower{
+  position:fixed; inset:0; pointer-events:none; z-index:500; overflow:hidden;
+  background:radial-gradient(ellipse at 60% 20%, rgba(20,14,40,0) 0%, rgba(10,8,28,0) 100%);
+  opacity:0; transition:opacity .5s ease, background .5s ease;
+}
+.meteor-shower.active{
+  opacity:1;
+  background:radial-gradient(ellipse at 60% 20%, rgba(20,14,40,0.05) 0%, rgba(10,8,28,0.28) 100%);
+}
+.meteor{
+  position:absolute; top:0; left:0; width:5px; height:5px; border-radius:50%;
+  background:#fff2d6;
+  box-shadow:0 0 10px 3px rgba(255,255,255,0.95), 0 0 22px 8px rgba(255,140,40,0.85), 0 0 40px 16px rgba(255,80,20,0.5);
+  opacity:0; animation-name:meteorFall; animation-timing-function:linear; animation-fill-mode:forwards;
+}
+.meteor::before{
+  content:""; position:absolute; top:50%; right:0; width:130px; height:3px;
+  transform:translateY(-50%) rotate(180deg); transform-origin:right center;
+  background:linear-gradient(90deg, rgba(255,170,60,0.95), rgba(255,90,20,0.45) 55%, rgba(255,90,20,0));
+  filter:drop-shadow(0 0 4px rgba(255,110,30,0.6));
+}
+@keyframes meteorFall{
+  0%{ opacity:0; transform:translate(0,0); }
+  6%{ opacity:1; }
+  85%{ opacity:1; }
+  100%{ opacity:0; transform:translate(-38vw, 46vh); }
+}
+.meteor-burst{
+  position:absolute; width:6px; height:6px; margin:-3px 0 0 -3px; border-radius:50%;
+  background:radial-gradient(circle, #fff8e6, #ffb347 45%, rgba(255,120,40,0) 72%);
+  animation:burstPulse .6s ease-out forwards;
+}
+@keyframes burstPulse{
+  0%{ transform:scale(0.3); opacity:1; }
+  55%{ transform:scale(3.4); opacity:0.85; }
+  100%{ transform:scale(5); opacity:0; }
+}
+.meteor-spark{
+  position:absolute; width:3px; height:3px; margin:-1.5px 0 0 -1.5px; border-radius:50%;
+  background:#ffdca0; box-shadow:0 0 6px 2px rgba(255,180,90,0.8);
+  animation:sparkFly .55s ease-out forwards;
+}
+@keyframes sparkFly{
+  0%{ transform:translate(0,0); opacity:1; }
+  100%{ transform:translate(var(--sx), var(--sy)); opacity:0; }
+}
 .scratch-card{
   position:relative; border-radius:16px; overflow:hidden; aspect-ratio:1/1;
   box-shadow:0 6px 16px var(--shadow); border:1px solid var(--line);
@@ -385,6 +444,10 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 
   <!-- HOME -->
   <section class="page active" id="page-home">
+    <div class="anniv-wrap" id="annivWrap" hidden>
+      <div class="script anniv-heading">✦ today's the day ✦</div>
+      <div class="daily-note-slot anniv-slot" id="annivSlot"></div>
+    </div>
     <div class="counter-card">
       <div class="counter-num" id="dayCount">0</div>
       <div class="counter-label">days of us</div>
@@ -555,6 +618,8 @@ nav.tabs button:hover{ transform:translateY(-1px); }
       <button class="lb-close" id="gfClose">close</button>
     </div>
   </div>
+
+  <div class="meteor-shower" id="meteorShower"></div>
 </div>
 
 <!-- Firebase (only connects if firebase-config.js below has real keys in it) -->
@@ -2634,6 +2699,84 @@ function buildNotes(){
   });
 }
 
+// true on the same month+day as STATE.startDate, every year going forward
+function isAnniversaryToday(){
+  const start = new Date(STATE.startDate + "T00:00:00");
+  const now = new Date();
+  return now.getMonth() === start.getMonth() && now.getDate() === start.getDate();
+}
+
+// a big scratch card that only shows up on the anniversary itself —
+// revealing it kicks off a meteor shower across the whole screen instead
+// of the usual confetti/fireworks
+function buildAnniversaryCard(){
+  const wrap = document.getElementById("annivWrap");
+  if(!isAnniversaryToday()){ wrap.hidden = true; return; }
+  wrap.hidden = false;
+  const slot = document.getElementById("annivSlot");
+  slot.innerHTML = "";
+  const card = document.createElement("div");
+  card.className = "scratch-card";
+  const under = document.createElement("div");
+  under.className = "scratch-under";
+  under.textContent = "Happy Anniversary, meine meteorite 🌠";
+  const canvas = document.createElement("canvas");
+  canvas.className = "scratch-canvas";
+  card.appendChild(under);
+  card.appendChild(canvas);
+  slot.appendChild(card);
+  setupScratch(card, canvas, triggerMeteorShower);
+}
+
+// a little burst of light + flying sparks where a meteor lands
+function spawnMeteorBurst(layer, topVh, leftVw){
+  const burst = document.createElement("div");
+  burst.className = "meteor-burst";
+  burst.style.top = topVh + "vh";
+  burst.style.left = leftVw + "vw";
+  layer.appendChild(burst);
+  setTimeout(() => burst.remove(), 700);
+
+  for(let i=0;i<7;i++){
+    const spark = document.createElement("div");
+    spark.className = "meteor-spark";
+    spark.style.top = topVh + "vh";
+    spark.style.left = leftVw + "vw";
+    const angle = Math.random()*Math.PI*2;
+    const dist = 24 + Math.random()*34;
+    spark.style.setProperty("--sx", Math.cos(angle)*dist + "px");
+    spark.style.setProperty("--sy", Math.sin(angle)*dist + "px");
+    layer.appendChild(spark);
+    setTimeout(() => spark.remove(), 650);
+  }
+}
+
+function triggerMeteorShower(){
+  const layer = document.getElementById("meteorShower");
+  if(!layer) return;
+  layer.innerHTML = "";
+  const count = 28;
+  // the fall keyframe always ends at translate(-38vw, 46vh) from wherever
+  // a meteor starts, so its landing spot is just start + that offset
+  const FALL_DX_VW = -38, FALL_DY_VH = 46;
+  for(let i=0;i<count;i++){
+    const top = Math.random()*50 - 10, left = 15 + Math.random()*90;
+    const duration = 0.9 + Math.random()*0.9, delay = Math.random()*1.8;
+    const m = document.createElement("div");
+    m.className = "meteor";
+    m.style.top = top + "vh";
+    m.style.left = left + "vw";
+    m.style.animationDuration = duration + "s";
+    m.style.animationDelay = delay + "s";
+    layer.appendChild(m);
+    setTimeout(() => spawnMeteorBurst(layer, top + FALL_DY_VH, left + FALL_DX_VW), (delay + duration) * 1000);
+  }
+  layer.classList.add("active");
+  haptic([20,40,20,40,20,60]);
+  setTimeout(() => { layer.classList.remove("active"); }, 3900);
+  setTimeout(() => { layer.innerHTML = ""; }, 4500);
+}
+
 // redraws any scratch cover that got skipped because its tab was hidden
 // when the card was first built — a canvas defaults to 300x150 even when
 // never sized, so a dedicated flag (not canvas.width) tracks this
@@ -2643,7 +2786,7 @@ function fixHiddenScratchCanvases(){
   });
 }
 
-function setupScratch(card, canvas){
+function setupScratch(card, canvas, onReveal){
   function size(){
     const r = card.getBoundingClientRect();
     if(!r.width || !r.height) return; // hidden tab — nothing to size yet
@@ -2682,7 +2825,10 @@ function setupScratch(card, canvas){
     ctx.arc(p.x, p.y, 18, 0, Math.PI*2);
     ctx.fill();
     cleared++;
-    if(cleared > 26 && !card.classList.contains("revealed")){ card.classList.add("revealed"); haptic(30); }
+    if(cleared > 26 && !card.classList.contains("revealed")){
+      card.classList.add("revealed"); haptic(30);
+      if(onReveal) onReveal();
+    }
   }
   canvas.addEventListener("pointerdown", e => { drawing=true; scratch(e); });
   canvas.addEventListener("pointermove", e => { if(drawing) scratch(e); });
@@ -3089,6 +3235,7 @@ document.getElementById("addRewardBtn").addEventListener("click", async () => {
   initGL();
   buildGalleryRoom();
   buildNotes();
+  buildAnniversaryCard();
   renderStreak();
   if(!STATE.workoutCalendar) STATE.workoutCalendar = {};
   buildCalendar();
@@ -3105,6 +3252,7 @@ document.getElementById("addRewardBtn").addEventListener("click", async () => {
   // debug hook — harmless, lets the console (or a test) inspect/drive live state
   window.STATE = STATE;
   window.buildGalleryRoom = buildGalleryRoom;
+  window.triggerMeteorShower = triggerMeteorShower;
   window.__gallery = {
     get camera(){ return camera; },
     get moveState(){ return moveState; },
