@@ -472,12 +472,6 @@ nav.tabs button:hover{ transform:translateY(-1px); }
   background:#0c0c14; margin-bottom:10px;
 }
 .face-lock-video-wrap video{ width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
-.face-lock-bypass{
-  position:absolute; bottom:14px; right:16px; border:none; background:rgba(255,255,255,0.08);
-  color:rgba(255,255,255,0.35); width:34px; height:34px; border-radius:50%; font-size:1rem;
-  cursor:pointer;
-}
-.face-lock-bypass:hover{ color:rgba(255,255,255,0.7); background:rgba(255,255,255,0.15); }
 .face-lock-skip{
   display:block; margin:10px auto 0; border:none; background:none;
   color:var(--ink-soft); text-decoration:underline; font-size:0.8rem; cursor:pointer;
@@ -588,7 +582,6 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 </head>
 <body>
 <div id="faceLock" class="face-lock">
-  <button id="faceLockBypass" class="face-lock-bypass" title="owner bypass">🔑</button>
   <div class="face-lock-card">
     <div class="script face-lock-title">meine bao's world</div>
     <p class="face-lock-prompt">Are you calm or mad right now? 😏<br>Prove it — smile for me before I let you in.</p>
@@ -910,7 +903,6 @@ function initFaceLock(){
   // so this gives it a head start instead of stalling right before capture
   loadFaceApi().catch(() => {});
 
-  document.getElementById("faceLockBypass").addEventListener("click", unlockFaceLock);
   skipBtn.addEventListener("click", () => {
     const pw = prompt("stuck? enter the password to get in:");
     if(pw === null) return; // she cancelled — leave her right where she was
@@ -4904,6 +4896,7 @@ function openDecorateModal(){
   window.openDecorateModal = openDecorateModal;
   window.openArrangeModal = openArrangeModal;
   window.notifyGoldenPickup = notifyGoldenPickup;
+  window.unlockFaceLock = unlockFaceLock;
   window.renderCounter = renderCounter;
   window.renderHomeMessage = renderHomeMessage;
   window.dismissGoldAlert = dismissGoldAlert;
