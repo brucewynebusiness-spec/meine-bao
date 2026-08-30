@@ -570,7 +570,7 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 /* ---------- golden pickup alert banner ---------- */
 .gold-alert{
   position:fixed; top:calc(env(safe-area-inset-top, 0px) + 46px); left:50%;
-  transform:translateX(-50%) translateY(-140%);
+  transform:translateX(-50%) translateY(-220%);
   z-index:600; max-width:92vw; display:flex; align-items:center; gap:10px;
   background:linear-gradient(180deg, #ffe58a 0%, #ffc93f 55%, #e69a1a 100%);
   color:#5a3a04; font-weight:700; font-size:0.85rem; padding:10px 14px; border-radius:999px;
@@ -578,6 +578,7 @@ nav.tabs button:hover{ transform:translateY(-1px); }
   transition:transform .35s cubic-bezier(.34,1.4,.64,1);
 }
 .gold-alert.show{ transform:translateX(-50%) translateY(0); }
+.gold-alert[hidden]{ display:none; }
 .gold-alert button{
   border:none; background:rgba(0,0,0,0.12); color:#5a3a04; width:22px; height:22px;
   border-radius:50%; cursor:pointer; font-size:0.7rem; line-height:1; flex-shrink:0;
@@ -4736,6 +4737,10 @@ function openArrangeModal(){
   document.getElementById("arrangeAddLamp").addEventListener("click", () => addAlbumRoomProp("lamp"));
   document.getElementById("arrangeAddPlant").addEventListener("click", () => addAlbumRoomProp("plant"));
   document.getElementById("arrangeReset").addEventListener("click", () => {
+    // asks twice on purpose — this throws away every album she's
+    // individually dragged into place, with no undo
+    if(!confirm("Reset the wall back to the automatic layout? This removes the exact spot you dragged each album to.")) return;
+    if(!confirm("Really reset it? This can't be undone.")) return;
     (STATE.musicGallery || []).forEach(a => { delete a.wallAngle; delete a.wallY; });
     commitArrangeChange();
     renderArrangeEditor();
@@ -4844,6 +4849,8 @@ function openDecorateModal(){
   window.openAlbumPicker = openAlbumPicker;
   window.openDecorateModal = openDecorateModal;
   window.openArrangeModal = openArrangeModal;
+  window.notifyGoldenPickup = notifyGoldenPickup;
+  window.dismissGoldAlert = dismissGoldAlert;
   window.updateRecordPlayerProximity = updateRecordPlayerProximity;
   window.triggerMeteorShower = triggerMeteorShower;
   window.__gallery = {
