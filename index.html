@@ -1153,7 +1153,11 @@ function goTab(name){
       target.style.transition = "opacity .22s ease, transform .22s ease";
       requestAnimationFrame(() => { target.style.opacity = "1"; target.style.transform = "none"; });
     });
-    if(name === "gallery"){ requestAnimationFrame(resizeGL); playEntranceFadeOnce(); }
+    if(name === "gallery"){
+      requestAnimationFrame(resizeGL);
+      playEntranceFadeOnce();
+      if(glReady && !galleryLoopRunning){ galleryLoopRunning = true; _lastT = null; requestAnimationFrame(tick); }
+    }
     if(name === "notes" || name === "workout") requestAnimationFrame(fixHiddenScratchCanvases);
     if(name === "sketch") requestAnimationFrame(fitSketchCanvas);
   }
@@ -1875,7 +1879,11 @@ function makeGoldenChest(){
 // picks a spawn spot and drops either a golden fish or a golden chest —
 // always one or the other, so she's never out there for nothing
 function initGoldenFish(){
-  if(!scene || goldenFishCaughtDate === todayStr()) return; // already caught for today
+  // one shot per session (not per calendar day) — sessionStorage clears
+  // when she closes the tab/browser, so opening the site fresh always
+  // gives her a new fish or chest to find, even if she already caught
+  // one earlier the same day
+  if(!scene || sessionStorage.getItem("obw_goldenfish_caught_session") === "1") return;
   goldenPickupType = Math.random() < 0.55 ? "fish" : "chest";
   goldenFish = goldenPickupType === "fish" ? makeGoldenFish() : makeGoldenChest();
   const nearBonus = goldenFishBonusPending;
@@ -1961,6 +1969,7 @@ function catchGoldenFish(){
   goldenFish = null;
   document.getElementById("goldFishBtn").hidden = true;
   goldenFishCaughtDate = todayStr();
+  sessionStorage.setItem("obw_goldenfish_caught_session", "1");
   const reward = GOLDEN_FISH_REWARDS[Math.floor(Math.random()*GOLDEN_FISH_REWARDS.length)];
   if(reward.bonus) goldenFishBonusPending = true;
   saveProgress();
@@ -2980,6 +2989,7 @@ function initGL(){
   glReady = true;
   document.getElementById("glLoading").classList.add("hidden");
   startPresence();
+  galleryLoopRunning = true;
   requestAnimationFrame(tick);
 }
 
@@ -3514,8 +3524,19 @@ const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
 const _prevCamPos = new THREE.Vector3();
 let _lastT = null;
+let galleryLoopRunning = false;
 function tick(t){
   if(!glReady) return;
+  // the whole point of this: a full WebGL scene with two render passes,
+  // continuous physics/audio, and a dozen animated systems was running
+  // forever in the background any time she wasn't even looking at the
+  // gallery tab — real, measurable battery drain and lag on a phone for
+  // no visible benefit. Stop scheduling frames the moment she leaves,
+  // and only pick back up (from goTab) when she returns.
+  if(!document.getElementById("page-gallery").classList.contains("active")){
+    galleryLoopRunning = false;
+    return;
+  }
   if(_lastT === null) _lastT = t;
   const dt = Math.min((t-_lastT)/1000, 0.05);
   _lastT = t;
@@ -4913,6 +4934,7 @@ function openDecorateModal(){
     get nearestArt(){ return nearestArt; },
     get goldenFish(){ return goldenFish; },
     get recordPlayerPos(){ return recordPlayerPos; },
+    get galleryLoopRunning(){ return galleryLoopRunning; },
     catchGoldenFish,
     _forceTestGoldenFish(){
       if(goldenFish) scene.remove(goldenFish);
