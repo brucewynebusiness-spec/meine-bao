@@ -349,6 +349,47 @@ nav.tabs button:hover{ transform:translateY(-1px); }
   background:#fffdf9; touch-action:none; box-shadow:0 6px 16px var(--shadow);
 }
 
+/* ---------- Music (Spotify) ---------- */
+.music-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+.music-card{
+  position:relative; background:var(--card); border:1px solid var(--line); border-radius:16px;
+  overflow:hidden; box-shadow:0 6px 16px var(--shadow); display:flex; flex-direction:column;
+}
+.music-card img{ width:100%; aspect-ratio:1/1; object-fit:cover; display:block; }
+.music-card .mc-body{ padding:10px 12px 12px; }
+.music-card .mc-title{ font-weight:700; font-size:0.85rem; line-height:1.25; }
+.music-card .mc-artist{ font-size:0.75rem; color:var(--ink-soft); margin-top:2px; }
+.music-card .mc-sticker{
+  position:absolute; top:8px; right:8px; font-size:1.5rem;
+  filter:drop-shadow(0 2px 4px rgba(0,0,0,0.35));
+}
+.music-card .mc-note{
+  font-size:0.75rem; color:var(--ink-soft); margin-top:6px; font-style:italic;
+  overflow-wrap:anywhere;
+}
+.music-card .mc-decorate{
+  margin-top:8px; border:1px solid var(--line); background:var(--bg); color:var(--ink);
+  border-radius:999px; padding:6px 10px; font-size:0.75rem; cursor:pointer; width:100%;
+}
+.music-decorate-pop{
+  position:fixed; inset:0; z-index:800; background:rgba(0,0,0,0.45);
+  display:flex; align-items:center; justify-content:center; padding:20px;
+}
+.music-decorate-pop .mdp-card{
+  background:var(--cream); border-radius:18px; padding:18px; max-width:340px; width:100%;
+}
+.music-decorate-pop .mdp-stickers{ display:flex; gap:8px; flex-wrap:wrap; margin:10px 0; }
+.music-decorate-pop .mdp-stickers span{
+  font-size:1.6rem; cursor:pointer; padding:4px; border-radius:8px; border:2px solid transparent;
+}
+.music-decorate-pop .mdp-stickers span.sel{ border-color:var(--rose-deep); }
+.music-decorate-pop textarea{
+  width:100%; min-height:70px; border-radius:10px; border:1px solid var(--line);
+  padding:8px 10px; font-family:'Quicksand',sans-serif; resize:vertical;
+}
+.music-decorate-pop .mdp-actions{ display:flex; gap:8px; margin-top:10px; }
+.music-decorate-pop .mdp-actions button{ flex:1; }
+
 /* ---------- Admin ---------- */
 .admin-link{ text-align:center; padding:24px 0 6px; }
 .admin-link a{ color:var(--ink-soft); font-size:0.75rem; text-decoration:none; opacity:0.5; }
@@ -448,6 +489,13 @@ nav.tabs button:hover{ transform:translateY(-1px); }
   color:#0b3a55; font-size:1rem; cursor:pointer;
   box-shadow:0 4px 10px rgba(11,58,85,0.3), inset 0 1px 3px rgba(255,255,255,0.6);
 }
+.music-play-btn{
+  position:absolute; top:12px; right:56px; z-index:5;
+  width:36px; height:36px; border-radius:50%; border:1px solid rgba(255,255,255,0.5);
+  background:radial-gradient(circle at 35% 28%, rgba(255,255,255,0.6), rgba(255,215,120,0.3) 60%, rgba(200,140,10,0.3) 100%);
+  color:#5a3a04; font-size:1rem; cursor:pointer;
+  box-shadow:0 4px 10px rgba(120,80,10,0.3), inset 0 1px 3px rgba(255,255,255,0.6);
+}
 
 .dive-btn{
   display:block; margin:12px auto 0; border:none; border-radius:999px;
@@ -523,6 +571,7 @@ nav.tabs button:hover{ transform:translateY(-1px); }
     <button data-tab="notes">Notes</button>
     <button data-tab="workout">Workout</button>
     <button data-tab="sketch">Sketch</button>
+    <button data-tab="music">Music</button>
   </nav>
 
   <!-- HOME -->
@@ -563,7 +612,9 @@ nav.tabs button:hover{ transform:translateY(-1px); }
         <button class="peek-btn" id="peekBtn" hidden>view this painting ✦</button>
         <button class="goldfish-btn" id="goldFishBtn" hidden>✨ catch it!</button>
         <button class="mute-btn" id="muteBtn" aria-label="mute sound" title="mute sound">🔊</button>
+        <button class="music-play-btn" id="musicPlayBtn" hidden title="play a song from her album room">🎵</button>
         <button class="surface-btn" id="surfaceBtn">✕ surface</button>
+        <audio id="palaceMusicAudio" preload="none"></audio>
         <div class="joystick-zone" id="joystickZone"></div>
         <div class="joystick" id="joystick"><div class="joystick-knob" id="joystickKnob"></div></div>
       </div>
@@ -642,6 +693,22 @@ nav.tabs button:hover{ transform:translateY(-1px); }
     <p id="sketchStatus" class="status-msg"></p>
   </section>
 
+  <!-- MUSIC -->
+  <section class="page" id="page-music">
+    <h2 class="script" style="margin:0 0 10px;">our soundtrack</h2>
+    <p style="color:var(--ink-soft);font-size:0.85rem;margin-top:-6px;">
+      Connect your Spotify and pull in the albums you've saved — pin a sticker and a little note on the ones that mean something.
+    </p>
+    <div id="musicConnectArea">
+      <button class="save-btn" id="spotifyConnectBtn" style="display:block;width:100%;">🎧 connect Spotify</button>
+    </div>
+    <p class="status-msg" id="musicStatus"></p>
+    <div id="musicControls" hidden style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+      <button class="qbtn" id="spotifyDisconnectBtn" type="button">disconnect</button>
+    </div>
+    <div class="music-grid" id="musicGrid"></div>
+  </section>
+
   <div class="admin-link"><a href="#" id="adminToggle">♡ admin</a></div>
   <section class="page" id="page-admin" style="padding:0 20px;">
     <div class="admin-panel">
@@ -709,6 +776,7 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <script src="firebase-config.js"></script>
+<script src="spotify-config.js"></script>
 
 <script type="importmap">
 { "imports": { "three": "./vendor/three.module.js" } }
@@ -948,6 +1016,7 @@ const STATE = {
   startDate: "2025-08-30",
   herName: "Meine Bao",
   gallery: [],
+  musicGallery: [], // { img, caption, albumId } — her decorated Spotify albums, shown in the palace sanctum
   notes: [
     "I fall for you a little more every single day.",
     "You make ordinary days feel like something worth remembering.",
@@ -1094,6 +1163,9 @@ const PALACE_STONE = 0xf2efe4;   // pale marble
 const PALACE_TRIM = 0xecdcae;    // warm ivory trim
 const PALACE_GOLD = 0xd8b76a;    // gilded accents — arches, finials, lanterns
 const PALACE_GLASS = 0xdcf1fb;   // pale glassy blue-white for the domes
+
+const artTextureLoader = new THREE.TextureLoader();
+artTextureLoader.crossOrigin = "anonymous"; // album covers come from Spotify's CDN, not our own origin
 
 let renderer, scene, camera, raycaster, hemiLight, keyLight;
 let sceneTarget, postScene, postCamera, postMaterial; // ink-outline + color-grade post pass
@@ -2577,7 +2649,7 @@ function buildFramePedestal(art, x, z, cx, cz, colorSeed){
 
   let hitMesh;
   if(art){
-    const tex = new THREE.TextureLoader().load(art.img);
+    const tex = artTextureLoader.load(art.img);
     tex.colorSpace = THREE.SRGBColorSpace;
     hitMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.72,1.72), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
   } else {
@@ -2641,7 +2713,7 @@ function buildWallFrame(art, x, z, faceYaw){
 
   let hitMesh;
   if(art){
-    const tex = new THREE.TextureLoader().load(art.img);
+    const tex = artTextureLoader.load(art.img);
     tex.colorSpace = THREE.SRGBColorSpace;
     hitMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.3,1.3), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
   } else {
@@ -2675,7 +2747,10 @@ function buildGalleryRoom(){
   const arts = hasArt ? STATE.gallery : [];
   const hallArts = hasArt ? arts.slice(0,6) : new Array(6).fill(null);
   const hallwayArts = hasArt ? arts.slice(6,8) : new Array(2).fill(null);
-  const sanctumArts = hasArt ? arts.slice(8) : new Array(4).fill(null);
+  // sanctum doubles as her "album room" — once she's decorated any
+  // Spotify albums, those take over the inner room instead of overflow art
+  const hasMusic = STATE.musicGallery && STATE.musicGallery.length > 0;
+  const sanctumArts = hasMusic ? STATE.musicGallery : (hasArt ? arts.slice(8) : new Array(4).fill(null));
 
   // great hall: a ring of pedestals split across the two arcs between
   // the south (ocean) and north (hallway) archways
@@ -2916,6 +2991,7 @@ function updateMuteButton(){
 document.getElementById("muteBtn").addEventListener("click", () => {
   GalleryAudio.init(); // harmless no-op if already running; ensures a context exists to mute
   GalleryAudio.setMuted(!GalleryAudio.muted);
+  if(window.PalaceMusic && PalaceMusic.audio) PalaceMusic.audio.volume = GalleryAudio.muted ? 0 : 0.6;
 });
 updateMuteButton();
 
@@ -3553,6 +3629,319 @@ document.getElementById("addRewardBtn").addEventListener("click", async () => {
 /* ================= boot ================= */
 initFaceLock();
 
+/* ================= Spotify (music tab) =================
+   PKCE auth-code flow — no client secret needed, so this works from a
+   plain static site (GitHub Pages has no backend to keep a secret on).
+   window.SPOTIFY_CLIENT_ID comes from spotify-config.js; leave it blank
+   and the tab just explains it isn't set up yet. */
+const SPOTIFY_CLIENT_ID = (window.SPOTIFY_CLIENT_ID || "").trim();
+const SPOTIFY_ENABLED = !!SPOTIFY_CLIENT_ID;
+const SPOTIFY_REDIRECT_URI = location.origin + location.pathname;
+const SPOTIFY_SCOPE = "user-library-read";
+const SPOTIFY_VERIFIER_KEY = "obw_spotify_verifier";
+const SPOTIFY_TOKEN_KEY = "obw_spotify_tokens";
+const SPOTIFY_STICKERS = ["💛","🤍","✨","🎧","💫","🌙","🔥","🥹"];
+
+function spotifyRandomString(len){
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let out = "";
+  const bytes = crypto.getRandomValues(new Uint8Array(len));
+  for(let i=0;i<len;i++) out += chars[bytes[i] % chars.length];
+  return out;
+}
+function base64UrlEncode(buf){
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+async function spotifyCodeChallenge(verifier){
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  return base64UrlEncode(digest);
+}
+function getSpotifyTokens(){
+  try{ return JSON.parse(sessionStorage.getItem(SPOTIFY_TOKEN_KEY) || "null"); }catch(e){ return null; }
+}
+function setSpotifyTokens(t){ sessionStorage.setItem(SPOTIFY_TOKEN_KEY, JSON.stringify(t)); }
+function clearSpotifyTokens(){ sessionStorage.removeItem(SPOTIFY_TOKEN_KEY); }
+
+async function connectSpotify(){
+  const verifier = spotifyRandomString(64);
+  sessionStorage.setItem(SPOTIFY_VERIFIER_KEY, verifier);
+  const challenge = await spotifyCodeChallenge(verifier);
+  const url = new URL("https://accounts.spotify.com/authorize");
+  url.searchParams.set("client_id", SPOTIFY_CLIENT_ID);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("redirect_uri", SPOTIFY_REDIRECT_URI);
+  url.searchParams.set("code_challenge_method", "S256");
+  url.searchParams.set("code_challenge", challenge);
+  url.searchParams.set("scope", SPOTIFY_SCOPE);
+  location.href = url.toString();
+}
+
+async function exchangeSpotifyCode(code){
+  const verifier = sessionStorage.getItem(SPOTIFY_VERIFIER_KEY) || "";
+  const body = new URLSearchParams({
+    client_id: SPOTIFY_CLIENT_ID, grant_type: "authorization_code",
+    code, redirect_uri: SPOTIFY_REDIRECT_URI, code_verifier: verifier
+  });
+  const res = await fetch("https://accounts.spotify.com/api/token", {
+    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body
+  });
+  if(!res.ok) throw new Error("token exchange failed");
+  const data = await res.json();
+  setSpotifyTokens({ access_token: data.access_token, refresh_token: data.refresh_token, expires_at: Date.now() + (data.expires_in*1000) });
+}
+
+async function refreshSpotifyToken(){
+  const t = getSpotifyTokens();
+  if(!t || !t.refresh_token) return null;
+  const body = new URLSearchParams({ client_id: SPOTIFY_CLIENT_ID, grant_type: "refresh_token", refresh_token: t.refresh_token });
+  const res = await fetch("https://accounts.spotify.com/api/token", {
+    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body
+  });
+  if(!res.ok){ clearSpotifyTokens(); return null; }
+  const data = await res.json();
+  const next = { access_token: data.access_token, refresh_token: data.refresh_token || t.refresh_token, expires_at: Date.now() + (data.expires_in*1000) };
+  setSpotifyTokens(next);
+  return next;
+}
+
+async function spotifyAccessToken(){
+  let t = getSpotifyTokens();
+  if(!t) return null;
+  if(Date.now() > t.expires_at - 10000) t = await refreshSpotifyToken();
+  return t ? t.access_token : null;
+}
+
+async function loadSpotifyDecorations(){
+  if(FIREBASE_ENABLED){
+    try{
+      const snap = await db.collection("site").doc("spotify").get();
+      return (snap.exists && snap.data().decor) || {};
+    }catch(e){ return {}; }
+  }
+  try{ return JSON.parse(localStorage.getItem("obw_spotify_decor") || "{}"); }catch(e){ return {}; }
+}
+async function saveSpotifyDecoration(albumId, decor){
+  const all = await loadSpotifyDecorations();
+  all[albumId] = decor;
+  if(FIREBASE_ENABLED){
+    await db.collection("site").doc("spotify").set({ decor: all }, { merge:true });
+  } else {
+    localStorage.setItem("obw_spotify_decor", JSON.stringify(all));
+  }
+}
+
+async function spotifyAlbumPreview(albumId){
+  const token = await spotifyAccessToken();
+  if(!token) return "";
+  try{
+    const res = await fetch(`https://api.spotify.com/v1/albums/${albumId}/tracks?limit=50`, {
+      headers: { Authorization: "Bearer " + token }
+    });
+    if(!res.ok) return "";
+    const data = await res.json();
+    const track = (data.items || []).find(t => t.preview_url);
+    return track ? track.preview_url : "";
+  }catch(e){ return ""; }
+}
+
+// her "album room": puts (or removes) a decorated album as a frame in the
+// palace sanctum, with a 30-second preview she can play while walking around
+async function setAlbumInPalace(album, show, sticker, note){
+  const idx = STATE.musicGallery.findIndex(m => m.albumId === album.id);
+  if(!show){
+    if(idx >= 0) STATE.musicGallery.splice(idx, 1);
+  } else {
+    const previewUrl = await spotifyAlbumPreview(album.id);
+    const caption = `🎵 ${sticker || ""} ${album.name} — ${album.artist}`.trim();
+    const entry = { img: album.cover, caption, albumId: album.id, previewUrl, note };
+    if(idx >= 0) STATE.musicGallery[idx] = entry; else STATE.musicGallery.push(entry);
+  }
+  await Store.saveContent(STATE).catch(() => {});
+  if(scene) buildGalleryRoom();
+  if(window.PalaceMusic) window.PalaceMusic.refreshQueue();
+}
+
+function openDecoratePopover(album, current, onSaved){
+  const pop = document.createElement("div");
+  pop.className = "music-decorate-pop";
+  pop.innerHTML = `
+    <div class="mdp-card">
+      <div class="mc-title">${album.name}</div>
+      <div class="mc-artist">${album.artist}</div>
+      <div class="mdp-stickers">${SPOTIFY_STICKERS.map(s => `<span data-s="${s}">${s}</span>`).join("")}</div>
+      <textarea placeholder="why this album?">${current.note || ""}</textarea>
+      <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;margin-top:10px;">
+        <input type="checkbox" id="mdpInPalace" ${STATE.musicGallery.some(m => m.albumId === album.id) ? "checked" : ""}>
+        put this in her album room in the palace
+      </label>
+      <div class="mdp-actions">
+        <button class="qbtn" id="mdpCancel" type="button">cancel</button>
+        <button class="save-btn" id="mdpSave" type="button" style="margin-top:0;">save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(pop);
+  let picked = current.sticker || "";
+  pop.querySelectorAll(".mdp-stickers span").forEach(el => {
+    if(el.dataset.s === picked) el.classList.add("sel");
+    el.addEventListener("click", () => {
+      pop.querySelectorAll(".mdp-stickers span").forEach(e2 => e2.classList.remove("sel"));
+      el.classList.add("sel");
+      picked = el.dataset.s;
+    });
+  });
+  pop.querySelector("#mdpCancel").addEventListener("click", () => pop.remove());
+  pop.addEventListener("click", e => { if(e.target === pop) pop.remove(); });
+  pop.querySelector("#mdpSave").addEventListener("click", async () => {
+    const note = pop.querySelector("textarea").value.trim();
+    const inPalace = pop.querySelector("#mdpInPalace").checked;
+    const saveBtn = pop.querySelector("#mdpSave");
+    saveBtn.disabled = true;
+    saveBtn.textContent = "saving…";
+    await saveSpotifyDecoration(album.id, { sticker: picked, note });
+    await setAlbumInPalace(album, inPalace, picked, note);
+    pop.remove();
+    onSaved({ sticker: picked, note });
+    haptic(15);
+  });
+}
+
+async function renderMusicGrid(){
+  const grid = document.getElementById("musicGrid");
+  const status = document.getElementById("musicStatus");
+  const token = await spotifyAccessToken();
+  if(!token){ grid.innerHTML = ""; return; }
+  status.textContent = "loading your albums…";
+  try{
+    const res = await fetch("https://api.spotify.com/v1/me/albums?limit=50", {
+      headers: { Authorization: "Bearer " + token }
+    });
+    if(!res.ok) throw new Error("spotify fetch failed");
+    const data = await res.json();
+    const decorations = await loadSpotifyDecorations();
+    grid.innerHTML = "";
+    (data.items || []).forEach(item => {
+      const a = item.album;
+      const album = { id: a.id, name: a.name, artist: (a.artists||[]).map(x=>x.name).join(", "), cover: (a.images && a.images[0] && a.images[0].url) || "" };
+      const decor = decorations[album.id] || {};
+      const card = document.createElement("div");
+      card.className = "music-card";
+      card.innerHTML = `
+        ${album.cover ? `<img src="${album.cover}" alt="">` : ""}
+        ${decor.sticker ? `<div class="mc-sticker">${decor.sticker}</div>` : ""}
+        <div class="mc-body">
+          <div class="mc-title">${album.name}</div>
+          <div class="mc-artist">${album.artist}</div>
+          ${decor.note ? `<div class="mc-note">"${decor.note}"</div>` : ""}
+          <button class="mc-decorate" type="button">decorate ✨</button>
+        </div>`;
+      card.querySelector(".mc-decorate").addEventListener("click", () => {
+        openDecoratePopover(album, decor, updated => {
+          decorations[album.id] = updated;
+          const sticker = card.querySelector(".mc-sticker");
+          if(updated.sticker){
+            if(sticker) sticker.textContent = updated.sticker;
+            else { const s = document.createElement("div"); s.className = "mc-sticker"; s.textContent = updated.sticker; card.prepend(s); }
+          }
+          let note = card.querySelector(".mc-note");
+          if(updated.note){
+            if(!note){ note = document.createElement("div"); note.className = "mc-note"; card.querySelector(".mc-decorate").before(note); }
+            note.textContent = `"${updated.note}"`;
+          } else if(note){ note.remove(); }
+        });
+      });
+      grid.appendChild(card);
+    });
+    status.textContent = data.items && data.items.length ? "" : "no saved albums yet — go save a few on Spotify, then come back.";
+  }catch(e){
+    status.textContent = "couldn't load your albums just now — try disconnecting and reconnecting.";
+  }
+}
+
+const PalaceMusic = {
+  audio: null, queue: [], idx: -1, playing: false,
+  init(){
+    this.audio = document.getElementById("palaceMusicAudio");
+    this.audio.addEventListener("ended", () => this.next());
+    document.getElementById("musicPlayBtn").addEventListener("click", () => this.toggle());
+    this.refreshQueue();
+  },
+  refreshQueue(){
+    this.queue = (STATE.musicGallery || []).filter(m => m.previewUrl);
+    const btn = document.getElementById("musicPlayBtn");
+    if(btn) btn.hidden = this.queue.length === 0;
+    if(this.queue.length === 0) this.stop();
+  },
+  toggle(){ this.playing ? this.pause() : this.play(); },
+  play(){
+    if(!this.queue.length) return;
+    if(this.idx < 0 || this.idx >= this.queue.length) this.idx = 0;
+    if(this.audio.src !== this.queue[this.idx].previewUrl) this.audio.src = this.queue[this.idx].previewUrl;
+    this.audio.volume = GalleryAudio.muted ? 0 : 0.6;
+    this.audio.play().catch(() => {});
+    this.playing = true;
+    this.updateBtn();
+  },
+  pause(){ this.audio.pause(); this.playing = false; this.updateBtn(); },
+  stop(){ if(this.audio){ this.audio.pause(); this.audio.removeAttribute("src"); } this.playing = false; this.idx = -1; this.updateBtn(); },
+  next(){
+    if(!this.queue.length) return;
+    this.idx = (this.idx + 1) % this.queue.length;
+    this.audio.src = this.queue[this.idx].previewUrl;
+    if(this.playing) this.audio.play().catch(() => {});
+  },
+  updateBtn(){ const btn = document.getElementById("musicPlayBtn"); if(btn) btn.textContent = this.playing ? "⏸" : "🎵"; }
+};
+window.PalaceMusic = PalaceMusic;
+
+async function initMusic(){
+  const connectArea = document.getElementById("musicConnectArea");
+  const controls = document.getElementById("musicControls");
+  const status = document.getElementById("musicStatus");
+  const connectBtn = document.getElementById("spotifyConnectBtn");
+  const disconnectBtn = document.getElementById("spotifyDisconnectBtn");
+
+  if(!SPOTIFY_ENABLED){
+    connectBtn.disabled = true;
+    status.textContent = "Spotify isn't set up yet — see spotify-config.js for a 2-minute setup.";
+    return;
+  }
+
+  connectBtn.addEventListener("click", () => {
+    connectBtn.disabled = true;
+    connectBtn.textContent = "connecting…";
+    connectSpotify();
+  });
+  disconnectBtn.addEventListener("click", () => {
+    clearSpotifyTokens();
+    connectArea.hidden = false;
+    controls.hidden = true;
+    document.getElementById("musicGrid").innerHTML = "";
+    status.textContent = "";
+  });
+
+  const params = new URLSearchParams(location.search);
+  const code = params.get("code");
+  if(code){
+    status.textContent = "connecting to Spotify…";
+    history.replaceState({}, "", location.pathname);
+    try{
+      await exchangeSpotifyCode(code);
+      goTab("music");
+    }catch(e){
+      status.textContent = "couldn't finish connecting to Spotify — try again.";
+    }
+  }
+
+  const token = await spotifyAccessToken();
+  if(token){
+    connectArea.hidden = true;
+    controls.hidden = false;
+    status.textContent = "";
+    renderMusicGrid();
+  }
+}
+
 (async function init(){
   document.getElementById("cloudBanner").textContent = FIREBASE_ENABLED
     ? "☁️ connected — content and progress sync across every device."
@@ -3592,9 +3981,12 @@ initFaceLock();
   buildAnniversaryCard();
   renderStreak();
   if(!STATE.workoutCalendar) STATE.workoutCalendar = {};
+  if(!STATE.musicGallery) STATE.musicGallery = [];
   buildCalendar();
   fitSketchCanvas();
   renderAdminLists();
+  PalaceMusic.init();
+  initMusic();
 
   const splash = document.getElementById("appSplash");
   setTimeout(() => splash.classList.add("hidden"), 500);
