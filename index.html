@@ -526,6 +526,11 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 }
 .music-player button.active{ background:#ffc93f; color:#5a3a04; }
 .music-player[hidden]{ display:none; }
+.music-player.mp-empty #mpCover, .music-player.mp-empty #mpShuffle,
+.music-player.mp-empty #mpPrev, .music-player.mp-empty #mpPlay,
+.music-player.mp-empty #mpNext, .music-player.mp-empty #mpChoose{ display:none; }
+.music-player.mp-empty #mpDecorate{ background:#ffc93f; color:#5a3a04; }
+.music-player.mp-empty .mp-title{ white-space:normal; color:#ffd9a0; }
 
 .dive-btn{
   display:block; margin:12px auto 0; border:none; border-radius:999px;
@@ -601,7 +606,6 @@ nav.tabs button:hover{ transform:translateY(-1px); }
     <button data-tab="notes">Notes</button>
     <button data-tab="workout">Workout</button>
     <button data-tab="sketch">Sketch</button>
-    <button data-tab="music">Music</button>
   </nav>
 
   <!-- HOME -->
@@ -647,6 +651,7 @@ nav.tabs button:hover{ transform:translateY(-1px); }
           <div class="mp-info">
             <div class="mp-title" id="mpTitle">—</div>
           </div>
+          <button id="mpDecorate" title="decorate the walls">🖼️</button>
           <button id="mpShuffle" title="shuffle">🔀</button>
           <button id="mpPrev" title="previous">⏮</button>
           <button id="mpPlay" title="play/pause">🎵</button>
@@ -733,30 +738,6 @@ nav.tabs button:hover{ transform:translateY(-1px); }
     </div>
     <canvas id="sketchCanvas"></canvas>
     <p id="sketchStatus" class="status-msg"></p>
-  </section>
-
-  <!-- MUSIC -->
-  <section class="page" id="page-music">
-    <h2 class="script" style="margin:0 0 10px;">our soundtrack</h2>
-    <p style="color:var(--ink-soft);font-size:0.85rem;margin-top:-6px;">
-      Connect your Spotify and pull in the albums you've saved — pin a sticker and a little note on the ones that mean something.
-    </p>
-    <div id="musicConnectArea">
-      <button class="save-btn" id="spotifyConnectBtn" style="display:block;width:100%;">🎧 connect Spotify</button>
-    </div>
-    <p class="status-msg" id="musicStatus"></p>
-    <div id="musicControls" hidden style="display:flex;justify-content:flex-end;margin-bottom:8px;">
-      <button class="qbtn" id="spotifyDisconnectBtn" type="button">disconnect</button>
-    </div>
-    <div class="music-grid" id="musicGrid"></div>
-
-    <div id="musicRoomSection" hidden style="margin-top:22px;">
-      <h3 class="script" style="margin:0 0 4px;font-size:1.15rem;">her album room</h3>
-      <p style="color:var(--ink-soft);font-size:0.8rem;margin-top:-4px;">
-        These are the albums hanging in the palace's album room. Use the arrows to move one — the order here is the order they hang in, left to right, top row first.
-      </p>
-      <div id="musicRoomList" class="music-room-list"></div>
-    </div>
   </section>
 
   <div class="admin-link"><a href="#" id="adminToggle">♡ admin</a></div>
@@ -1280,10 +1261,25 @@ const GalleryAudio = {
     const filter = ctx.createBiquadFilter();
     filter.type = "lowpass"; filter.frequency.value = 220; // muffled, underwater
     const gain = ctx.createGain();
-    gain.gain.value = 0.025;
+    gain.gain.value = 0.04;
     noise.connect(filter); filter.connect(gain); gain.connect(this.master);
     noise.start();
     this.ambientNodes = { noise, filter, gain };
+  },
+  blub(){
+    if(!this.ctx) return;
+    const ctx = this.ctx;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = "sine";
+    const t0 = ctx.currentTime;
+    osc.frequency.setValueAtTime(500 + Math.random()*140, t0);
+    osc.frequency.exponentialRampToValueAtTime(170, t0+0.18);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(0.09, t0+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+0.22);
+    osc.connect(g); g.connect(this.master);
+    osc.start(t0); osc.stop(t0+0.25);
   },
   chime(){
     if(!this.ctx) return;
@@ -1731,6 +1727,36 @@ let goldenPickupType = "fish"; // "fish" | "chest"
 let goldenFishCaughtDate = "";
 let goldenFishBonusPending = false;
 
+// a little "chase me!" speech bubble that hovers over the golden fish
+// while it's fleeing — a hint that swimming toward it is the right move,
+// not a sign something's wrong
+function makeChaseBubbleTexture(){
+  const canvas = document.createElement("canvas");
+  canvas.width = 256; canvas.height = 128;
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width, h = canvas.height;
+  const bodyH = h*0.72, r = 24;
+  ctx.fillStyle = "rgba(255,255,255,0.96)";
+  ctx.strokeStyle = "rgba(200,150,20,0.9)";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.lineTo(w-r, 0); ctx.arcTo(w, 0, w, r, r);
+  ctx.lineTo(w, bodyH-r); ctx.arcTo(w, bodyH, w-r, bodyH, r);
+  ctx.lineTo(w*0.4, bodyH); ctx.lineTo(w*0.3, h); ctx.lineTo(w*0.32, bodyH);
+  ctx.lineTo(r, bodyH); ctx.arcTo(0, bodyH, 0, bodyH-r, r);
+  ctx.lineTo(0, r); ctx.arcTo(0, 0, r, 0, r);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#a9660a";
+  ctx.font = "bold 44px 'Quicksand', sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("chase me! 🐟", w/2, bodyH/2);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function makeGoldenFish(){
   const group = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color: 0xffd23f, roughness: 0.22, metalness: 0.45, emissive: 0xff9d1f, emissiveIntensity: 0.55 });
@@ -1743,6 +1769,15 @@ function makeGoldenFish(){
   group.add(tail);
   const glow = new THREE.PointLight(0xffd23f, 1.1, 6, 2);
   group.add(glow);
+
+  const bubbleMat = new THREE.SpriteMaterial({ map: makeChaseBubbleTexture(), transparent: true, depthTest: false });
+  const bubble = new THREE.Sprite(bubbleMat);
+  bubble.scale.set(1.3, 0.65, 1);
+  bubble.position.set(0, 0.55, 0);
+  bubble.visible = false;
+  group.add(bubble);
+  group.userData.chaseBubble = bubble;
+
   return group;
 }
 
@@ -1823,6 +1858,10 @@ function updateGoldenFish(dt, tSec){
     return;
   }
 
+  const isFleeing = dist < GOLDFISH_NOTICE_RADIUS && dist > catchRadius;
+  const bubble = goldenFish.userData.chaseBubble;
+  if(bubble) bubble.visible = isFleeing;
+
   if(dist < GOLDFISH_NOTICE_RADIUS && dist > 0.0001){
     // flee, but a little slower than she can swim — with jitter so it
     // isn't a dead-straight sprint — so a determined chase always wins
@@ -1834,6 +1873,8 @@ function updateGoldenFish(dt, tSec){
     goldenFish.userData.wanderAngle += (Math.random()-0.5) * dt * 1.2;
     _gfVel.set(Math.sin(goldenFish.userData.wanderAngle), 0, Math.cos(goldenFish.userData.wanderAngle)).multiplyScalar(0.6);
   }
+
+  if(bubble && isFleeing) bubble.position.y = 0.55 + Math.sin(tSec*3) * 0.05;
 
   pos.addScaledVector(_gfVel, dt);
   const distFromHall = Math.hypot(pos.x, pos.z);
@@ -2676,8 +2717,10 @@ function makeBubbleTexture(){
   return tex;
 }
 
+let sharedBubbleTex = null;
 function initBubbles(){
   const tex = makeBubbleTexture();
+  sharedBubbleTex = tex;
   const mat = new THREE.SpriteMaterial({ map: tex, transparent:true, depthWrite:false });
   for(let i=0;i<44;i++){
     const sprite = new THREE.Sprite(mat.clone());
@@ -2705,6 +2748,42 @@ function updateBubbles(dt, t){
     b.position.x = b.userData.baseX + sway;
     if(b.position.y > ROOM_HEIGHT - 0.1) resetBubble(b, false);
   });
+}
+
+// a little trail of bubbles (with a soft "blub" sound) while she's actually
+// swimming, wherever she is in the palace — the ambient bubble pool above
+// only ever rises from the great hall clearing, so this is what gives her
+// a swimming cue everywhere else too
+let swimBubbles = [];
+let swimBubbleTimer = 0;
+function spawnSwimBubble(){
+  if(!sharedBubbleTex || !scene) return;
+  const mat = new THREE.SpriteMaterial({ map: sharedBubbleTex, transparent:true, depthWrite:false, opacity:0.9 });
+  const sprite = new THREE.Sprite(mat);
+  const scale = 0.04 + Math.random()*0.05;
+  sprite.scale.set(scale, scale, 1);
+  sprite.position.set(
+    camPos.x + (Math.random()-0.5)*0.3,
+    EYE_HEIGHT - 0.35 + Math.random()*0.25,
+    camPos.z + (Math.random()-0.5)*0.3
+  );
+  scene.add(sprite);
+  swimBubbles.push({ sprite, life: 0 });
+}
+function updateSwimBubbles(dt, isMoving){
+  swimBubbleTimer -= dt;
+  if(isMoving && swimBubbleTimer <= 0){
+    spawnSwimBubble();
+    GalleryAudio.blub();
+    swimBubbleTimer = 0.35 + Math.random()*0.35;
+  }
+  for(let i=swimBubbles.length-1;i>=0;i--){
+    const b = swimBubbles[i];
+    b.life += dt;
+    b.sprite.position.y += dt * 0.7;
+    b.sprite.material.opacity = Math.max(0, 0.9 * (1 - b.life/1.3));
+    if(b.life > 1.3){ scene.remove(b.sprite); swimBubbles.splice(i,1); }
+  }
 }
 
 /* Frutiger-Aero palette: bright glossy sky-blue by day, cooling to a deep
@@ -3242,14 +3321,28 @@ function updateRecordPlayerProximity(){
   const btn = document.getElementById("recordPlayerBtn");
   const widget = document.getElementById("musicPlayer");
   if(!btn || !widget) return;
-  const hasQueue = !!(window.PalaceMusic && PalaceMusic.queue.length);
-  const near = !!(recordPlayerPos && hasQueue && Math.hypot(camPos.x-recordPlayerPos.x, camPos.z-recordPlayerPos.z) < RECORD_PLAYER_RADIUS);
+  // shows purely on proximity — it's also how she adds her first album
+  // to the room, so it can't be gated on already having one
+  const near = !!(recordPlayerPos && Math.hypot(camPos.x-recordPlayerPos.x, camPos.z-recordPlayerPos.z) < RECORD_PLAYER_RADIUS);
   if(!near) musicPlayerOpen = false;
   btn.hidden = !near || musicPlayerOpen;
   widget.hidden = !musicPlayerOpen;
+  if(musicPlayerOpen) updateMusicPlayerEmptyState();
+}
+function updateMusicPlayerEmptyState(){
+  const widget = document.getElementById("musicPlayer");
+  const hasAlbums = !!(STATE.musicGallery && STATE.musicGallery.length);
+  const hasPlayable = !!(window.PalaceMusic && PalaceMusic.queue.length);
+  widget.classList.toggle("mp-empty", !hasPlayable);
+  if(!hasPlayable){
+    document.getElementById("mpTitle").textContent = hasAlbums
+      ? "none of these albums have a preview clip from Spotify"
+      : "nothing on the walls yet — tap 🖼️ to add an album";
+  }
 }
 document.getElementById("recordPlayerBtn").addEventListener("click", () => {
   musicPlayerOpen = true;
+  if(window.PalaceMusic) PalaceMusic.updateWidget();
   updateRecordPlayerProximity();
   haptic(15);
 });
@@ -3331,6 +3424,7 @@ function tick(t){
 
   updateFish(dt, t*0.001);
   updateBubbles(dt, t);
+  updateSwimBubbles(dt, isMoving);
   updateKelp(t);
   updateSharks(dt, t*0.001);
   updateJellyfish(dt, t*0.001);
@@ -4212,6 +4306,7 @@ const PalaceMusic = {
     document.getElementById("mpPrev").addEventListener("click", () => this.prev());
     document.getElementById("mpShuffle").addEventListener("click", () => this.setShuffle(!this.shuffle));
     document.getElementById("mpChoose").addEventListener("click", () => openAlbumPicker());
+    document.getElementById("mpDecorate").addEventListener("click", () => openDecorateModal());
     document.getElementById("mpShuffle").classList.toggle("active", this.shuffle);
     this.refreshQueue();
   },
@@ -4314,18 +4409,33 @@ function openAlbumPicker(){
   pop.addEventListener("click", e => { if(e.target === pop) pop.remove(); });
 }
 
-async function initMusic(){
+// runs once at page load, regardless of what she's looking at — handles
+// the redirect back from Spotify's login. Silent by design: she never
+// sees this page mid-flow, she just ends up back at the record player
+// already connected next time she opens it.
+async function handleSpotifyCallback(){
+  const params = new URLSearchParams(location.search);
+  const code = params.get("code");
+  if(!code) return;
+  history.replaceState({}, "", location.pathname);
+  if(!SPOTIFY_ENABLED) return;
+  try{ await exchangeSpotifyCode(code); }catch(e){ /* she can just tap connect again at the record player */ }
+}
+
+// wires up the connect/disconnect + album grid + room list inside the
+// decorate modal — called fresh each time that modal opens, since its
+// DOM is created and torn down with it
+async function initSpotifyDecorateUI(){
   const connectArea = document.getElementById("musicConnectArea");
   const controls = document.getElementById("musicControls");
   const status = document.getElementById("musicStatus");
   const connectBtn = document.getElementById("spotifyConnectBtn");
   const disconnectBtn = document.getElementById("spotifyDisconnectBtn");
 
-  renderMusicRoomList();
-
   if(!SPOTIFY_ENABLED){
     connectBtn.disabled = true;
     status.textContent = "Spotify isn't set up yet — see spotify-config.js for a 2-minute setup.";
+    renderMusicRoomList();
     return;
   }
 
@@ -4342,19 +4452,6 @@ async function initMusic(){
     status.textContent = "";
   });
 
-  const params = new URLSearchParams(location.search);
-  const code = params.get("code");
-  if(code){
-    status.textContent = "connecting to Spotify…";
-    history.replaceState({}, "", location.pathname);
-    try{
-      await exchangeSpotifyCode(code);
-      goTab("music");
-    }catch(e){
-      status.textContent = "couldn't finish connecting to Spotify — try again.";
-    }
-  }
-
   const token = await spotifyAccessToken();
   if(token){
     connectArea.hidden = true;
@@ -4362,6 +4459,42 @@ async function initMusic(){
     status.textContent = "";
     renderMusicGrid();
   }
+  renderMusicRoomList();
+}
+
+// the modal she opens from the record player with "decorate the walls" —
+// everything about connecting Spotify and choosing which albums hang in
+// the album room lives here now, not in a separate tab
+function openDecorateModal(){
+  const pop = document.createElement("div");
+  pop.className = "music-decorate-pop";
+  pop.innerHTML = `
+    <div class="mdp-card" style="max-width:420px;max-height:82vh;overflow-y:auto;text-align:left;">
+      <div class="mc-title" style="margin-bottom:8px;">decorate the album room</div>
+      <p style="color:var(--ink-soft);font-size:0.8rem;margin:-4px 0 10px;">
+        Connect your Spotify and pull in the albums you've saved — pin a sticker and a little note on the ones that mean something, then choose whether it goes up on the wall.
+      </p>
+      <div id="musicConnectArea">
+        <button class="save-btn" id="spotifyConnectBtn" style="display:block;width:100%;margin-top:0;">🎧 connect Spotify</button>
+      </div>
+      <p class="status-msg" id="musicStatus"></p>
+      <div id="musicControls" hidden style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+        <button class="qbtn" id="spotifyDisconnectBtn" type="button">disconnect</button>
+      </div>
+      <div class="music-grid" id="musicGrid"></div>
+      <div id="musicRoomSection" hidden style="margin-top:18px;">
+        <h3 class="script" style="margin:0 0 4px;font-size:1.05rem;">her album room</h3>
+        <p style="color:var(--ink-soft);font-size:0.75rem;margin-top:-2px;">Use the arrows to move one — top row first, left to right.</p>
+        <div id="musicRoomList" class="music-room-list"></div>
+      </div>
+      <div class="mdp-actions">
+        <button class="qbtn" id="decorateModalClose" type="button">close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(pop);
+  pop.querySelector("#decorateModalClose").addEventListener("click", () => pop.remove());
+  pop.addEventListener("click", e => { if(e.target === pop) pop.remove(); });
+  initSpotifyDecorateUI();
 }
 
 (async function init(){
@@ -4408,7 +4541,7 @@ async function initMusic(){
   fitSketchCanvas();
   renderAdminLists();
   PalaceMusic.init();
-  initMusic();
+  handleSpotifyCallback();
 
   const splash = document.getElementById("appSplash");
   setTimeout(() => splash.classList.add("hidden"), 500);
@@ -4423,6 +4556,7 @@ async function initMusic(){
   window.renderMusicRoomList = renderMusicRoomList;
   window.openLightbox = openLightbox;
   window.openAlbumPicker = openAlbumPicker;
+  window.openDecorateModal = openDecorateModal;
   window.updateRecordPlayerProximity = updateRecordPlayerProximity;
   window.triggerMeteorShower = triggerMeteorShower;
   window.__gallery = {
@@ -4436,7 +4570,16 @@ async function initMusic(){
     get nearestArt(){ return nearestArt; },
     get goldenFish(){ return goldenFish; },
     get recordPlayerPos(){ return recordPlayerPos; },
-    catchGoldenFish
+    catchGoldenFish,
+    _forceTestGoldenFish(){
+      if(goldenFish) scene.remove(goldenFish);
+      goldenPickupType = "fish";
+      goldenFish = makeGoldenFish();
+      goldenFish.userData.wanderAngle = 0;
+      goldenFish.position.set(10, 1, 10);
+      scene.add(goldenFish);
+      return true;
+    }
   };
 })();
 </script>
