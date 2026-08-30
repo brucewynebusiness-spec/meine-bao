@@ -4024,7 +4024,7 @@ initFaceLock();
 const SPOTIFY_CLIENT_ID = (window.SPOTIFY_CLIENT_ID || "").trim();
 const SPOTIFY_ENABLED = !!SPOTIFY_CLIENT_ID;
 const SPOTIFY_REDIRECT_URI = location.origin + location.pathname;
-const SPOTIFY_SCOPE = "user-library-read";
+const SPOTIFY_SCOPE = "user-library-read playlist-read-private playlist-read-collaborative";
 const SPOTIFY_VERIFIER_KEY = "obw_spotify_verifier";
 const SPOTIFY_TOKEN_KEY = "obw_spotify_tokens";
 const SPOTIFY_STICKERS = ["💛","🤍","✨","🎧","💫","🌙","🔥","🥹"];
@@ -4118,29 +4118,39 @@ async function saveSpotifyDecoration(albumId, decor){
   }
 }
 
-async function spotifyAlbumPreview(albumId){
+// works for both a saved album and a playlist — same shape, different
+// Spotify endpoint for pulling a 30-second preview clip out of it
+async function spotifyItemPreview(item){
   const token = await spotifyAccessToken();
   if(!token) return "";
+  const endpoint = item.type === "playlist"
+    ? `https://api.spotify.com/v1/playlists/${item.id}/tracks?limit=50&fields=items(track(preview_url))`
+    : `https://api.spotify.com/v1/albums/${item.id}/tracks?limit=50`;
   try{
-    const res = await fetch(`https://api.spotify.com/v1/albums/${albumId}/tracks?limit=50`, {
-      headers: { Authorization: "Bearer " + token }
-    });
+    const res = await fetch(endpoint, { headers: { Authorization: "Bearer " + token } });
     if(!res.ok) return "";
     const data = await res.json();
-    const track = (data.items || []).find(t => t.preview_url);
-    return track ? track.preview_url : "";
+    const items = data.items || [];
+    const track = item.type === "playlist"
+      ? items.find(t => t.track && t.track.preview_url)
+      : items.find(t => t.preview_url);
+    if(!track) return "";
+    return item.type === "playlist" ? track.track.preview_url : track.preview_url;
   }catch(e){ return ""; }
 }
 
-// her "album room": puts (or removes) a decorated album as a frame in the
-// palace sanctum, with a 30-second preview she can play while walking around
+// her "album room": puts (or removes) a decorated album/playlist as a
+// frame in the palace sanctum, with a 30-second preview she can play
+// while walking around
 async function setAlbumInPalace(album, show, sticker, note){
   const idx = STATE.musicGallery.findIndex(m => m.albumId === album.id);
   if(!show){
     if(idx >= 0) STATE.musicGallery.splice(idx, 1);
   } else {
-    const previewUrl = await spotifyAlbumPreview(album.id);
-    const caption = `🎵 ${sticker || ""} ${album.name} — ${album.artist}`.trim();
+    const previewUrl = await spotifyItemPreview(album);
+    const caption = album.type === "playlist"
+      ? `🎵 ${sticker || ""} ${album.name}`.trim()
+      : `🎵 ${sticker || ""} ${album.name} — ${album.artist}`.trim();
     const entry = { img: album.cover, caption, albumId: album.id, previewUrl, note };
     if(idx >= 0) STATE.musicGallery[idx] = entry; else STATE.musicGallery.push(entry);
   }
@@ -4194,23 +4204,48 @@ function openDecoratePopover(album, current, onSaved){
   });
 }
 
+async function fetchSpotifySavedAlbums(token){
+  const res = await fetch("https://api.spotify.com/v1/me/albums?limit=50", {
+    headers: { Authorization: "Bearer " + token }
+  });
+  if(!res.ok) return [];
+  const data = await res.json();
+  return (data.items || []).map(item => {
+    const a = item.album;
+    return { id: a.id, type: "album", name: a.name, artist: (a.artists||[]).map(x=>x.name).join(", "), cover: (a.images && a.images[0] && a.images[0].url) || "" };
+  });
+}
+async function fetchSpotifyPlaylists(token){
+  const res = await fetch("https://api.spotify.com/v1/me/playlists?limit=50", {
+    headers: { Authorization: "Bearer " + token }
+  });
+  if(!res.ok) return { items: [], denied: res.status === 403 };
+  const data = await res.json();
+  return {
+    items: (data.items || []).map(p => ({
+      id: p.id, type: "playlist", name: p.name,
+      artist: `playlist by ${(p.owner && p.owner.display_name) || "her"}`,
+      cover: (p.images && p.images[0] && p.images[0].url) || ""
+    })),
+    denied: false
+  };
+}
+
 async function renderMusicGrid(){
   const grid = document.getElementById("musicGrid");
   const status = document.getElementById("musicStatus");
   const token = await spotifyAccessToken();
   if(!token){ grid.innerHTML = ""; return; }
-  status.textContent = "loading your albums…";
+  status.textContent = "loading your albums and playlists…";
   try{
-    const res = await fetch("https://api.spotify.com/v1/me/albums?limit=50", {
-      headers: { Authorization: "Bearer " + token }
-    });
-    if(!res.ok) throw new Error("spotify fetch failed");
-    const data = await res.json();
+    const [albums, playlistResult] = await Promise.all([
+      fetchSpotifySavedAlbums(token),
+      fetchSpotifyPlaylists(token)
+    ]);
+    const allItems = [...albums, ...playlistResult.items];
     const decorations = await loadSpotifyDecorations();
     grid.innerHTML = "";
-    (data.items || []).forEach(item => {
-      const a = item.album;
-      const album = { id: a.id, name: a.name, artist: (a.artists||[]).map(x=>x.name).join(", "), cover: (a.images && a.images[0] && a.images[0].url) || "" };
+    allItems.forEach(album => {
       const decor = decorations[album.id] || {};
       const card = document.createElement("div");
       card.className = "music-card";
@@ -4240,10 +4275,16 @@ async function renderMusicGrid(){
       });
       grid.appendChild(card);
     });
-    status.textContent = data.items && data.items.length ? "" : "no saved albums yet — go save a few on Spotify, then come back.";
+    if(allItems.length === 0){
+      status.textContent = "nothing yet — save an album or make a playlist on Spotify, then come back.";
+    } else if(playlistResult.denied){
+      status.textContent = "showing your saved albums — disconnect and reconnect once to also grant playlist access.";
+    } else {
+      status.textContent = "";
+    }
     renderMusicRoomList();
   }catch(e){
-    status.textContent = "couldn't load your albums just now — try disconnecting and reconnecting.";
+    status.textContent = "couldn't load your albums and playlists just now — try disconnecting and reconnecting.";
   }
 }
 
