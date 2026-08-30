@@ -911,7 +911,15 @@ function initFaceLock(){
   loadFaceApi().catch(() => {});
 
   document.getElementById("faceLockBypass").addEventListener("click", unlockFaceLock);
-  skipBtn.addEventListener("click", unlockFaceLock);
+  skipBtn.addEventListener("click", () => {
+    const pw = prompt("stuck? enter the password to get in:");
+    if(pw === null) return; // she cancelled — leave her right where she was
+    if(pw.trim().toLowerCase() === "meinebao"){
+      unlockFaceLock();
+    } else {
+      status.textContent = "that's not it — try again, or keep trying to smile 😊";
+    }
+  });
 
   function offerSkipIfStuck(){
     failCount++;
