@@ -402,6 +402,10 @@ nav.tabs button:hover{ transform:translateY(-1px); }
   cursor:pointer;
 }
 .face-lock-bypass:hover{ color:rgba(255,255,255,0.7); background:rgba(255,255,255,0.15); }
+.face-lock-skip{
+  display:block; margin:10px auto 0; border:none; background:none;
+  color:var(--ink-soft); text-decoration:underline; font-size:0.8rem; cursor:pointer;
+}
 
 /* ---------- App splash (first load only) ---------- */
 #appSplash{
@@ -478,6 +482,7 @@ nav.tabs button:hover{ transform:translateY(-1px); }
     <button id="faceLockOpenCam" class="save-btn">📷 turn on the camera</button>
     <button id="faceLockCapture" class="save-btn" hidden>📸 take the picture</button>
     <button id="faceLockRetry" class="qbtn" hidden>try again</button>
+    <button id="faceLockSkip" class="face-lock-skip" hidden>having trouble? just let me in 💛</button>
   </div>
 </div>
 <div id="appSplash">
@@ -726,6 +731,12 @@ function unlockFaceLock(){
   lock.classList.add("gone");
   const video = document.getElementById("faceLockVideo");
   if(video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
+  // the golden fish/chest alert fires the moment the page loads, which is
+  // *behind* this lock and auto-dismisses after 8s — if she's still
+  // unlocking by then she'd never see it, so re-show it once she's in
+  if(typeof goldenFish !== "undefined" && goldenFish && typeof notifyGoldenPickup === "function"){
+    setTimeout(() => notifyGoldenPickup(goldenPickupType, true), 500);
+  }
 }
 
 function loadFaceApi(){
@@ -753,10 +764,23 @@ function initFaceLock(){
   const openBtn = document.getElementById("faceLockOpenCam");
   const captureBtn = document.getElementById("faceLockCapture");
   const retryBtn = document.getElementById("faceLockRetry");
+  const skipBtn = document.getElementById("faceLockSkip");
   const video = document.getElementById("faceLockVideo");
   const canvas = document.getElementById("faceLockCanvas");
+  let failCount = 0;
+
+  // start loading the detector the moment the page opens, not only after
+  // she grants camera access — the CDN + model download is the slow part,
+  // so this gives it a head start instead of stalling right before capture
+  loadFaceApi().catch(() => {});
 
   document.getElementById("faceLockBypass").addEventListener("click", unlockFaceLock);
+  skipBtn.addEventListener("click", unlockFaceLock);
+
+  function offerSkipIfStuck(){
+    failCount++;
+    if(failCount >= 2) skipBtn.hidden = false; // never leave her actually stuck
+  }
 
   openBtn.addEventListener("click", async () => {
     status.textContent = "asking for camera access…";
@@ -766,9 +790,9 @@ function initFaceLock(){
       openBtn.hidden = true;
       captureBtn.hidden = false;
       status.textContent = "";
-      loadFaceApi().catch(() => {}); // warm it up in the background while she gets ready
     }catch(e){
       status.textContent = "couldn't get the camera — check your browser's camera permission and try again.";
+      offerSkipIfStuck();
     }
   });
 
@@ -778,26 +802,38 @@ function initFaceLock(){
     canvas.width = video.videoWidth; canvas.height = video.videoHeight;
     canvas.getContext("2d").drawImage(video, 0, 0);
     try{
+      // first try can take a few seconds if the detector is still
+      // downloading — say so instead of leaving her guessing
+      const slowNotice = setTimeout(() => { status.textContent = "still checking — first time can take a few seconds…"; }, 2500);
       await loadFaceApi();
       const result = await faceapi
-        .detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions())
+        .detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 }))
         .withFaceExpressions();
+      clearTimeout(slowNotice);
       if(!result){
-        status.textContent = "couldn't find your face in frame — move in a little and try again.";
+        status.textContent = "couldn't find your face in frame — move in a little, get some more light, and try again.";
         retryBtn.hidden = false;
+        offerSkipIfStuck();
         return;
       }
-      if(result.expressions.happy > 0.5){
+      // "happy" as the clearly dominant expression counts — she doesn't
+      // need a huge grin, and lighting/angle already make this harder
+      // than it should be
+      const ex = result.expressions;
+      const isSmiling = ex.happy > 0.3 && ex.happy >= Math.max(ex.neutral, ex.sad, ex.angry, ex.surprised, ex.disgusted, ex.fearful);
+      if(isSmiling){
         status.textContent = "there she is 🤍 welcome in.";
         haptic([20,40,20,60]);
         setTimeout(unlockFaceLock, 700);
       } else {
         status.textContent = "hmm, not buying it — try again? 😏";
         retryBtn.hidden = false;
+        offerSkipIfStuck();
       }
     }catch(e){
-      status.textContent = "couldn't check that just now — try again, or use the key in the corner if it keeps failing.";
+      status.textContent = "couldn't check that just now — try again, or tap 'just let me in' below if it keeps failing.";
       retryBtn.hidden = false;
+      offerSkipIfStuck();
     }
   }
   captureBtn.addEventListener("click", checkSmile);
@@ -1680,12 +1716,12 @@ document.getElementById("goldAlert").addEventListener("click", e => {
   goTab("gallery");
 });
 
-function notifyGoldenPickup(type){
+function notifyGoldenPickup(type, isReshow){
   const text = type === "chest"
     ? "✨ a golden chest washed up out there today — go find it!"
     : "✨ the golden fish is out there today — go find it!";
   showGoldAlert(text);
-  if(!("Notification" in window)) return;
+  if(isReshow || !("Notification" in window)) return;
   const fire = () => { try{ new Notification("Meine Bao's World", { body: text, icon: "icons/icon-192.png" }); }catch(e){} };
   if(Notification.permission === "granted") fire();
   else if(Notification.permission === "default") Notification.requestPermission().then(p => { if(p === "granted") fire(); });
@@ -2927,7 +2963,7 @@ document.getElementById("lightbox").addEventListener("click", e => { if(e.target
 
 /* ================= notes: scratch cards ================= */
 
-document.getElementById("notesResetBtn").addEventListener("click", () => { buildNotes(); haptic(15); });
+document.getElementById("notesResetBtn").addEventListener("click", () => { buildNotes(); buildAnniversaryCard(); haptic(15); });
 
 // a single scratch card holding *today's* note, rendered into every
 // slot that wants it (the Notes tab and the workout calendar both show
@@ -3067,7 +3103,24 @@ function setupScratch(card, canvas, onReveal){
 
   const ctx = canvas.getContext("2d");
   let drawing = false;
-  let cleared = 0;
+  let strokeCount = 0;
+
+  // real coverage, not just a dab count — samples a fixed number of points
+  // across the canvas and checks how many are actually scratched away, so
+  // she has to clear most of the card rather than a lucky corner of it
+  function scratchedFraction(){
+    const w = canvas.width, h = canvas.height;
+    if(!w || !h) return 0;
+    const totalPixels = w*h;
+    const step = Math.max(1, Math.floor(totalPixels/2000));
+    const data = ctx.getImageData(0,0,w,h).data;
+    let sampled = 0, cleared = 0;
+    for(let px=0; px<totalPixels; px+=step){
+      sampled++;
+      if(data[px*4+3] < 40) cleared++;
+    }
+    return sampled ? cleared/sampled : 0;
+  }
 
   function pos(e){
     const r = canvas.getBoundingClientRect();
@@ -3079,8 +3132,10 @@ function setupScratch(card, canvas, onReveal){
     ctx.beginPath();
     ctx.arc(p.x, p.y, 18, 0, Math.PI*2);
     ctx.fill();
-    cleared++;
-    if(cleared > 26 && !card.classList.contains("revealed")){
+    strokeCount++;
+    // checking coverage means reading the canvas back, which isn't free —
+    // only do it every few strokes instead of on every single move event
+    if(!card.classList.contains("revealed") && strokeCount % 5 === 0 && scratchedFraction() > 0.7){
       card.classList.add("revealed"); haptic(30);
       if(onReveal) onReveal();
     }
