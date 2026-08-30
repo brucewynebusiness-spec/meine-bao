@@ -525,6 +525,7 @@ nav.tabs button:hover{ transform:translateY(-1px); }
   border-radius:50%; font-size:0.85rem; cursor:pointer; flex-shrink:0;
 }
 .music-player button.active{ background:#ffc93f; color:#5a3a04; }
+.music-player[hidden]{ display:none; }
 
 .dive-btn{
   display:block; margin:12px auto 0; border:none; border-radius:999px;
@@ -640,6 +641,7 @@ nav.tabs button:hover{ transform:translateY(-1px); }
         <div class="gl-hint">drag to look around · WASD or the joystick to walk</div>
         <button class="peek-btn" id="peekBtn" hidden>view this painting ✦</button>
         <button class="goldfish-btn" id="goldFishBtn" hidden>✨ catch it!</button>
+        <button class="peek-btn" id="recordPlayerBtn" hidden>🎶 use the record player</button>
         <div class="music-player" id="musicPlayer" hidden>
           <img id="mpCover" alt="">
           <div class="mp-info">
@@ -650,6 +652,7 @@ nav.tabs button:hover{ transform:translateY(-1px); }
           <button id="mpPlay" title="play/pause">🎵</button>
           <button id="mpNext" title="next">⏭</button>
           <button id="mpChoose" title="choose an album">📀</button>
+          <button id="mpClose" title="close">✕</button>
         </div>
         <button class="mute-btn" id="muteBtn" aria-label="mute sound" title="mute sound">🔊</button>
         <button class="surface-btn" id="surfaceBtn">✕ surface</button>
@@ -3229,6 +3232,32 @@ function updatePeek(){
 }
 document.getElementById("peekBtn").addEventListener("click", () => { if(nearestArt) openLightbox(nearestArt); });
 
+// she has to actually walk up to the record player: a prompt button
+// appears once she's close enough, and only tapping it opens the full
+// player controls — walking away closes it again (the music itself
+// keeps playing in the background, like a record left spinning behind her)
+const RECORD_PLAYER_RADIUS = 2.4;
+let musicPlayerOpen = false;
+function updateRecordPlayerProximity(){
+  const btn = document.getElementById("recordPlayerBtn");
+  const widget = document.getElementById("musicPlayer");
+  if(!btn || !widget) return;
+  const hasQueue = !!(window.PalaceMusic && PalaceMusic.queue.length);
+  const near = !!(recordPlayerPos && hasQueue && Math.hypot(camPos.x-recordPlayerPos.x, camPos.z-recordPlayerPos.z) < RECORD_PLAYER_RADIUS);
+  if(!near) musicPlayerOpen = false;
+  btn.hidden = !near || musicPlayerOpen;
+  widget.hidden = !musicPlayerOpen;
+}
+document.getElementById("recordPlayerBtn").addEventListener("click", () => {
+  musicPlayerOpen = true;
+  updateRecordPlayerProximity();
+  haptic(15);
+});
+document.getElementById("mpClose").addEventListener("click", () => {
+  musicPlayerOpen = false;
+  updateRecordPlayerProximity();
+});
+
 /* ---------------- mute control + haptics ---------------- */
 function updateMuteButton(){
   const btn = document.getElementById("muteBtn");
@@ -3308,6 +3337,7 @@ function tick(t){
   updateMermaids(dt, t*0.001);
   updateGoldenFish(dt, t*0.001);
   if(recordPlatterMesh && window.PalaceMusic && PalaceMusic.playing) recordPlatterMesh.rotation.y += dt * 3.2;
+  updateRecordPlayerProximity();
   updatePeek();
   updatePresenceAvatars(dt);
   broadcastPresence(t);
@@ -4188,8 +4218,6 @@ const PalaceMusic = {
   refreshQueue(){
     const prevId = this.queue[this.idx] ? this.queue[this.idx].albumId : null;
     this.queue = (STATE.musicGallery || []).filter(m => m.previewUrl);
-    const widget = document.getElementById("musicPlayer");
-    if(widget) widget.hidden = this.queue.length === 0;
     if(this.queue.length === 0){ this.stop(); return; }
     const keepIdx = prevId ? this.queue.findIndex(m => m.albumId === prevId) : -1;
     this.idx = keepIdx >= 0 ? keepIdx : Math.max(0, Math.min(this.idx, this.queue.length - 1));
@@ -4395,6 +4423,7 @@ async function initMusic(){
   window.renderMusicRoomList = renderMusicRoomList;
   window.openLightbox = openLightbox;
   window.openAlbumPicker = openAlbumPicker;
+  window.updateRecordPlayerProximity = updateRecordPlayerProximity;
   window.triggerMeteorShower = triggerMeteorShower;
   window.__gallery = {
     get camera(){ return camera; },
@@ -4406,6 +4435,7 @@ async function initMusic(){
     get camPos(){ return camPos; },
     get nearestArt(){ return nearestArt; },
     get goldenFish(){ return goldenFish; },
+    get recordPlayerPos(){ return recordPlayerPos; },
     catchGoldenFish
   };
 })();
