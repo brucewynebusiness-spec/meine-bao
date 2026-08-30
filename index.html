@@ -447,6 +447,21 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 }
 .gl-viewport.immersive .surface-btn{ display:block; }
 
+/* ---------- golden pickup alert banner ---------- */
+.gold-alert{
+  position:fixed; top:14px; left:50%; transform:translateX(-50%) translateY(-140%);
+  z-index:600; max-width:92vw; display:flex; align-items:center; gap:10px;
+  background:linear-gradient(180deg, #ffe58a 0%, #ffc93f 55%, #e69a1a 100%);
+  color:#5a3a04; font-weight:700; font-size:0.85rem; padding:10px 14px; border-radius:999px;
+  box-shadow:0 10px 24px rgba(180,120,10,0.5); cursor:pointer;
+  transition:transform .35s cubic-bezier(.34,1.4,.64,1);
+}
+.gold-alert.show{ transform:translateX(-50%) translateY(0); }
+.gold-alert button{
+  border:none; background:rgba(0,0,0,0.12); color:#5a3a04; width:22px; height:22px;
+  border-radius:50%; cursor:pointer; font-size:0.7rem; line-height:1; flex-shrink:0;
+}
+
 </style>
 </head>
 <body>
@@ -468,6 +483,10 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 <div id="appSplash">
   <div class="splash-heart">🤍</div>
   <div class="splash-label">opening your world…</div>
+</div>
+<div class="gold-alert" id="goldAlert" hidden>
+  <span id="goldAlertText"></span>
+  <button id="goldAlertClose" aria-label="dismiss">✕</button>
 </div>
 <div class="wrap">
   <header class="top">
@@ -652,7 +671,7 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 
   <div class="goldfish-modal" id="goldFishModal">
     <div class="goldfish-card">
-      <div class="script" style="font-size:1.6rem;color:var(--gold);">✦ golden fish caught ✦</div>
+      <div class="script" id="gfTitle" style="font-size:1.6rem;color:var(--gold);">✦ golden fish caught ✦</div>
       <div class="gf-type" id="gfType"></div>
       <div class="gf-text" id="gfText"></div>
       <div class="gf-bonus" id="gfBonus" hidden></div>
@@ -1497,8 +1516,9 @@ const GOLDEN_FISH_REWARDS = [
   { type:"coupon", text:"📸 Redeem an unflattering photo of me, yours to keep and tease me with." },
   { type:"coupon", text:"🫡 Redeem a “yes chef” pass — I do one task exactly your way, no complaints." }
 ];
-const GOLDFISH_NOTICE_RADIUS = 6.5, GOLDFISH_CATCH_RADIUS = 1.7;
+const GOLDFISH_NOTICE_RADIUS = 6.5, GOLDFISH_CATCH_RADIUS = 2.6, GOLDCHEST_CATCH_RADIUS = 2.6;
 let goldenFish = null;
+let goldenPickupType = "fish"; // "fish" | "chest"
 let goldenFishCaughtDate = "";
 let goldenFishBonusPending = false;
 
@@ -1517,18 +1537,61 @@ function makeGoldenFish(){
   return group;
 }
 
+// a treasure chest that just sits on the seabed — no chasing required,
+// a nice change of pace from the fish so she's never just "unlucky"
+function makeGoldenChest(){
+  const group = new THREE.Group();
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x8a5a34, roughness: 0.7, metalness: 0.05 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0xffd23f, roughness: 0.25, metalness: 0.6, emissive: 0xff9d1f, emissiveIntensity: 0.45 });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.32, 0.4), woodMat);
+  base.position.y = 0.16;
+  group.add(base);
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.22, 0.4), woodMat);
+  lid.position.set(0, 0.36, -0.08);
+  lid.rotation.x = -0.55; // propped open invitingly
+  group.add(lid);
+  [0.05, 0.16, 0.27].forEach(y => {
+    const band = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.04, 0.42), trimMat);
+    band.position.y = y;
+    group.add(band);
+  });
+  const latch = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), trimMat);
+  latch.position.set(0, 0.3, 0.2);
+  group.add(latch);
+  const glow = new THREE.PointLight(0xffd23f, 1.3, 5.5, 2);
+  glow.position.set(0, 0.4, 0);
+  group.add(glow);
+  return group;
+}
+
+// picks a spawn spot and drops either a golden fish or a golden chest —
+// always one or the other, so she's never out there for nothing
 function initGoldenFish(){
   if(!scene || goldenFishCaughtDate === todayStr()) return; // already caught for today
-  goldenFish = makeGoldenFish();
+  goldenPickupType = Math.random() < 0.55 ? "fish" : "chest";
+  goldenFish = goldenPickupType === "fish" ? makeGoldenFish() : makeGoldenChest();
   const nearBonus = goldenFishBonusPending;
-  const radius = nearBonus
-    ? HALL_R + 3 + Math.random()*5             // an easy find right outside the entrance
-    : HALL_R + 12 + Math.random()*(WORLD_RADIUS - HALL_R - 18); // far out in the open water
-  const angle = Math.random()*Math.PI*2;
-  goldenFish.position.set(Math.sin(angle)*radius, 1.0 + Math.random()*2.5, Math.cos(angle)*radius);
+  let angle, radius;
+  if(nearBonus){
+    // "right outside the entrance" — that's the south side (angle 0), so
+    // actually keep it there instead of anywhere around the palace
+    radius = HALL_R + 3 + Math.random()*5;
+    angle = (Math.random()-0.5) * 1.1;
+  } else {
+    // far out in the open water — but steer clear of the wedge behind the
+    // palace where the hallway/sanctum's invisible walls live, so she
+    // never gets bumped by a wall she can't see out there
+    radius = HALL_R + 12 + Math.random()*(WORLD_RADIUS - HALL_R - 18);
+    const excludeHalf = 0.5; // keep clear of the hallway/sanctum direction (angle = PI)
+    const a = Math.random() * (Math.PI*2 - excludeHalf*2);
+    angle = a < (Math.PI - excludeHalf) ? a : a + excludeHalf*2;
+  }
+  const y = goldenPickupType === "fish" ? 1.0 + Math.random()*2.5 : 0;
+  goldenFish.position.set(Math.sin(angle)*radius, y, Math.cos(angle)*radius);
   goldenFish.userData.wanderAngle = Math.random()*Math.PI*2;
   if(nearBonus) goldenFishBonusPending = false; // consumed on spawn
   scene.add(goldenFish);
+  notifyGoldenPickup(goldenPickupType);
 }
 
 const _gfToPlayer = new THREE.Vector3();
@@ -1539,14 +1602,25 @@ function updateGoldenFish(dt, tSec){
   const pos = goldenFish.position;
   _gfToPlayer.set(pos.x - camPos.x, 0, pos.z - camPos.z);
   const dist = _gfToPlayer.length();
+  const catchRadius = goldenPickupType === "chest" ? GOLDCHEST_CATCH_RADIUS : GOLDFISH_CATCH_RADIUS;
 
-  document.getElementById("goldFishBtn").hidden = dist >= GOLDFISH_CATCH_RADIUS;
+  const btn = document.getElementById("goldFishBtn");
+  btn.hidden = dist >= catchRadius;
+  btn.textContent = goldenPickupType === "chest" ? "✨ open it!" : "✨ catch it!";
+
+  if(goldenPickupType === "chest"){
+    goldenFish.rotation.y += dt * 0.4; // slow idle spin so it catches the eye
+    goldenFish.position.y = Math.sin(tSec*1.2) * 0.05;
+    return;
+  }
 
   if(dist < GOLDFISH_NOTICE_RADIUS && dist > 0.0001){
-    // flee, a touch faster than she can swim, with jitter so it isn't a dead sprint
+    // flee, but a little slower than she can swim — with jitter so it
+    // isn't a dead-straight sprint — so a determined chase always wins
+    // eventually instead of being mathematically impossible to catch
     _gfVel.copy(_gfToPlayer).normalize();
-    _gfVel.applyAxisAngle(_upAxis, Math.sin(tSec*1.7 + pos.x) * 0.6);
-    _gfVel.multiplyScalar(MOVE_SPEED * 1.15);
+    _gfVel.applyAxisAngle(_upAxis, Math.sin(tSec*1.7 + pos.x) * 0.45);
+    _gfVel.multiplyScalar(MOVE_SPEED * 0.8);
   } else {
     goldenFish.userData.wanderAngle += (Math.random()-0.5) * dt * 1.2;
     _gfVel.set(Math.sin(goldenFish.userData.wanderAngle), 0, Math.cos(goldenFish.userData.wanderAngle)).multiplyScalar(0.6);
@@ -1568,6 +1642,7 @@ function updateGoldenFish(dt, tSec){
 
 function catchGoldenFish(){
   if(!goldenFish) return;
+  const caughtType = goldenPickupType;
   scene.remove(goldenFish);
   goldenFish = null;
   document.getElementById("goldFishBtn").hidden = true;
@@ -1576,17 +1651,55 @@ function catchGoldenFish(){
   if(reward.bonus) goldenFishBonusPending = true;
   saveProgress();
   haptic([20,50,20,50,80]);
-  showGoldenFishReward(reward);
+  showGoldenFishReward(reward, caughtType);
 }
 document.getElementById("goldFishBtn").addEventListener("click", catchGoldenFish);
 
-function showGoldenFishReward(reward){
+/* -------- golden pickup alert: an in-app banner (and, if she's granted
+   permission, a real browser notification) the moment one spawns, so
+   she knows to go look instead of wandering hoping to get lucky -------- */
+function showGoldAlert(text){
+  const alertEl = document.getElementById("goldAlert");
+  if(!alertEl) return;
+  document.getElementById("goldAlertText").textContent = text;
+  alertEl.hidden = false;
+  requestAnimationFrame(() => alertEl.classList.add("show"));
+  clearTimeout(alertEl._hideTimer);
+  alertEl._hideTimer = setTimeout(dismissGoldAlert, 8000);
+}
+function dismissGoldAlert(){
+  const alertEl = document.getElementById("goldAlert");
+  if(!alertEl) return;
+  alertEl.classList.remove("show");
+  setTimeout(() => { alertEl.hidden = true; }, 300);
+}
+document.getElementById("goldAlertClose").addEventListener("click", dismissGoldAlert);
+document.getElementById("goldAlert").addEventListener("click", e => {
+  if(e.target.id === "goldAlertClose") return;
+  dismissGoldAlert();
+  goTab("gallery");
+});
+
+function notifyGoldenPickup(type){
+  const text = type === "chest"
+    ? "✨ a golden chest washed up out there today — go find it!"
+    : "✨ the golden fish is out there today — go find it!";
+  showGoldAlert(text);
+  if(!("Notification" in window)) return;
+  const fire = () => { try{ new Notification("Meine Bao's World", { body: text, icon: "icons/icon-192.png" }); }catch(e){} };
+  if(Notification.permission === "granted") fire();
+  else if(Notification.permission === "default") Notification.requestPermission().then(p => { if(p === "granted") fire(); });
+}
+
+function showGoldenFishReward(reward, caughtType){
+  document.getElementById("gfTitle").textContent = caughtType === "chest"
+    ? "✦ golden chest opened ✦" : "✦ golden fish caught ✦";
   document.getElementById("gfType").textContent = reward.type === "date"
     ? "a date idea, just for you two" : "redeem this, whenever you like";
   document.getElementById("gfText").textContent = reward.text;
   const bonusEl = document.getElementById("gfBonus");
   bonusEl.hidden = !reward.bonus;
-  if(reward.bonus) bonusEl.textContent = "🎁 bonus: the next golden fish will swim in close — an easy catch.";
+  if(reward.bonus) bonusEl.textContent = "🎁 bonus: the next one will spawn close to the entrance — an easy find.";
   document.getElementById("goldFishModal").classList.add("open");
 }
 document.getElementById("gfClose").addEventListener("click", () => document.getElementById("goldFishModal").classList.remove("open"));
