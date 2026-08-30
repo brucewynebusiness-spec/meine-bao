@@ -390,6 +390,20 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 .music-decorate-pop .mdp-actions{ display:flex; gap:8px; margin-top:10px; }
 .music-decorate-pop .mdp-actions button{ flex:1; }
 
+.music-room-list{ display:flex; flex-direction:column; gap:6px; }
+.music-room-row{
+  display:flex; align-items:center; gap:10px; background:var(--card); border:1px solid var(--line);
+  border-radius:12px; padding:6px 8px;
+}
+.music-room-row img{ width:38px; height:38px; border-radius:6px; object-fit:cover; flex-shrink:0; }
+.music-room-row .mrr-title{ flex:1; font-size:0.8rem; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.music-room-row .mrr-btns{ display:flex; gap:4px; flex-shrink:0; }
+.music-room-row .mrr-btns button{
+  border:1px solid var(--line); background:var(--bg); border-radius:8px; width:26px; height:26px;
+  cursor:pointer; font-size:0.8rem; line-height:1; color:var(--ink);
+}
+.music-room-row .mrr-remove{ color:var(--rose-deep); border-color:var(--rose-deep); }
+
 /* ---------- Admin ---------- */
 .admin-link{ text-align:center; padding:24px 0 6px; }
 .admin-link a{ color:var(--ink-soft); font-size:0.75rem; text-decoration:none; opacity:0.5; }
@@ -708,6 +722,14 @@ nav.tabs button:hover{ transform:translateY(-1px); }
       <button class="qbtn" id="spotifyDisconnectBtn" type="button">disconnect</button>
     </div>
     <div class="music-grid" id="musicGrid"></div>
+
+    <div id="musicRoomSection" hidden style="margin-top:22px;">
+      <h3 class="script" style="margin:0 0 4px;font-size:1.15rem;">her album room</h3>
+      <p style="color:var(--ink-soft);font-size:0.8rem;margin-top:-4px;">
+        These are the albums hanging in the palace's album room. Use the arrows to move one — the order here is the order they hang in, left to right, top row first.
+      </p>
+      <div id="musicRoomList" class="music-room-list"></div>
+    </div>
   </section>
 
   <div class="admin-link"><a href="#" id="adminToggle">♡ admin</a></div>
@@ -1160,6 +1182,11 @@ const HALLWAY_LEN = 7;
 const HALLWAY_HALF_W = 2;
 const SANCTUM_R = 6;
 const SANCTUM_CZ = -(HALL_R + HALLWAY_LEN + SANCTUM_R); // sanctum center, along -Z
+// a second hallway continues past the sanctum into her album room — a
+// dedicated space for decorated Spotify albums, separate from the art sanctum
+const HALLWAY2_LEN = 6;
+const ALBUM_ROOM_R = 5.5;
+const ALBUM_ROOM_CZ = SANCTUM_CZ - SANCTUM_R - HALLWAY2_LEN - ALBUM_ROOM_R;
 const PALACE_STONE = 0xf2efe4;   // pale marble
 const PALACE_TRIM = 0xecdcae;    // warm ivory trim
 const PALACE_GOLD = 0xd8b76a;    // gilded accents — arches, finials, lanterns
@@ -2288,6 +2315,66 @@ function addPearlCluster(parent, x, z){
   parent.add(shell);
 }
 
+// a little coral-encrusted desk for her album room reading nook
+function addCoralDesk(parent, x, z, goldMat){
+  const topMat = new THREE.MeshStandardMaterial({ color: 0xd8c9a8, roughness: 0.55, metalness: 0.05 });
+  const top = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.08, 0.7), topMat);
+  top.position.set(x, 0.72, z);
+  parent.add(top);
+  const legMat = new THREE.MeshPhysicalMaterial({ color: 0xc9a45c, roughness: 0.4, metalness: 0.4 });
+  [[-0.62,-0.28],[0.62,-0.28],[-0.62,0.28],[0.62,0.28]].forEach(([dx,dz]) => {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 0.72, 8), legMat);
+    leg.position.set(x+dx, 0.36, z+dz);
+    parent.add(leg);
+  });
+  // coral growing up one corner of the desk
+  const coralMat = new THREE.MeshStandardMaterial({ color: CORAL_COLORS[1], roughness: 0.45, metalness: 0.05 });
+  for(let i=0;i<5;i++){
+    const piece = new THREE.Mesh(new THREE.SphereGeometry(0.06+Math.random()*0.07, 10, 8), coralMat);
+    piece.position.set(x-0.6+Math.random()*0.2, 0.76+Math.random()*0.18, z-0.28+Math.random()*0.15);
+    parent.add(piece);
+  }
+}
+
+// a clamshell chair, big enough to sit in — pearl-pink on the outside
+function addClamshellChair(parent, x, z){
+  const shellMat = new THREE.MeshPhysicalMaterial({ color: 0xffd7e6, side: THREE.DoubleSide, roughness: 0.3, metalness: 0.08, clearcoat: 0.5, sheen: 1 });
+  const back = new THREE.Mesh(new THREE.SphereGeometry(0.62, 20, 14, 0, Math.PI*2, 0, Math.PI*0.55), shellMat);
+  back.rotation.x = Math.PI;
+  back.position.set(x, 0.62, z);
+  parent.add(back);
+  const seatMat = new THREE.MeshStandardMaterial({ color: 0xfff1f5, roughness: 0.4, metalness: 0.04 });
+  const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.1, 20), seatMat);
+  seat.position.set(x, 0.4, z);
+  parent.add(seat);
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.16, 0.4, 10), new THREE.MeshStandardMaterial({ color: 0xc9a45c, roughness: 0.4, metalness: 0.3 }));
+  base.position.set(x, 0.2, z);
+  parent.add(base);
+}
+
+// kelp climbing a wall like ivy — a stack of swaying blades trailing
+// upward instead of standing planted on the floor
+function addWallVine(parent, cx, cz, radius, angle){
+  const x = Math.sin(angle) * (radius - 0.15), z = cz + Math.cos(angle) * (radius - 0.15);
+  const kelpColor = KELP_COLORS[Math.floor(Math.random()*KELP_COLORS.length)];
+  const group = new THREE.Group();
+  group.position.set(x, 0, z);
+  group.rotation.y = angle + Math.PI;
+  for(let i=0;i<5;i++){
+    const h = 0.7 + Math.random()*0.4;
+    const bladeMat = new THREE.MeshStandardMaterial({ color: kelpColor, side: THREE.DoubleSide, roughness: 0.5, metalness: 0.03 });
+    const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.14, h), bladeMat);
+    blade.geometry.translate(0, h/2, 0);
+    const pivot = new THREE.Group();
+    pivot.position.set((Math.random()-0.5)*0.3, i*0.62, 0.05);
+    pivot.rotation.z = (Math.random()-0.5)*0.3;
+    pivot.add(blade);
+    group.add(pivot);
+    kelpBlades.push({ obj: pivot, phase: Math.random()*Math.PI*2, speed: 0.5+Math.random()*0.4, amp: 0.08+Math.random()*0.06 });
+  }
+  parent.add(group);
+}
+
 function buildPalace(){
   if(palaceGroup) scene.remove(palaceGroup);
   palaceGroup = new THREE.Group();
@@ -2379,10 +2466,12 @@ function buildPalace(){
     addColumn(palaceGroup, HALLWAY_HALF_W-0.35, z, WALL_HEIGHT, wallMat, goldMat);
   }
 
-  // sanctum: a smaller domed room, single archway back toward the hallway
-  addWallRing(palaceGroup, 0, SANCTUM_CZ, SANCTUM_R, [0], wallMat);
+  // sanctum: a smaller domed room, an archway back toward the hallway and
+  // a second archway continuing on to her album room
+  addWallRing(palaceGroup, 0, SANCTUM_CZ, SANCTUM_R, [0, Math.PI], wallMat);
   addDome(palaceGroup, 0, SANCTUM_CZ, SANCTUM_R, domeMat, goldMat);
   addArch(palaceGroup, 0, SANCTUM_CZ, SANCTUM_R, 0, SANCTUM_R*Math.sin(DOOR_HALF)+0.25, 0.14, goldMat);
+  addArch(palaceGroup, 0, SANCTUM_CZ, SANCTUM_R, Math.PI, SANCTUM_R*Math.sin(DOOR_HALF)+0.25, 0.14, goldMat);
   const sanctumFloor = new THREE.Mesh(new THREE.CircleGeometry(SANCTUM_R+0.2, 40), marbleFloorMat);
   sanctumFloor.rotation.x = -Math.PI/2;
   sanctumFloor.position.set(0, 0.012, SANCTUM_CZ);
@@ -2393,8 +2482,63 @@ function buildPalace(){
   addFlowerCluster(palaceGroup, -SANCTUM_R+2.4, SANCTUM_CZ - 1.5);
   addFlowerCluster(palaceGroup, SANCTUM_R-2.4, SANCTUM_CZ + 1.5);
   addLightShaft(palaceGroup, 0, SANCTUM_CZ, WALL_HEIGHT + SANCTUM_R*0.85, 0, SANCTUM_R*0.55);
-  distributeAngles(5, [[sconceBuf, Math.PI*2-sconceBuf]])
+  distributeAngles(4, [[sconceBuf, Math.PI-sconceBuf], [Math.PI+sconceBuf, Math.PI*2-sconceBuf]])
     .forEach(a => addWallSconce(palaceGroup, 0, SANCTUM_CZ, SANCTUM_R, a, 2.4, goldMat));
+
+  // second hallway: sanctum's far archway on to the album room
+  const hall2Z0 = SANCTUM_CZ - SANCTUM_R, hall2Z1 = ALBUM_ROOM_CZ + ALBUM_ROOM_R;
+  const hallway2Floor = new THREE.Mesh(new THREE.PlaneGeometry(HALLWAY_HALF_W*2, HALLWAY2_LEN), hallwayFloorMat);
+  hallway2Floor.rotation.x = -Math.PI/2;
+  hallway2Floor.position.set(0, 0.01, (hall2Z0+hall2Z1)/2);
+  hallway2Floor.receiveShadow = true;
+  palaceGroup.add(hallway2Floor);
+  const centerline2 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.012, HALLWAY2_LEN), goldMat);
+  centerline2.position.set(0, 0.017, (hall2Z0+hall2Z1)/2);
+  palaceGroup.add(centerline2);
+  for(const side of [-1,1]){
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(0.5, WALL_HEIGHT, HALLWAY2_LEN), wallMat);
+    wall.position.set(side*HALLWAY_HALF_W, WALL_HEIGHT/2, (hall2Z0+hall2Z1)/2);
+    palaceGroup.add(wall);
+  }
+  const ceiling2 = new THREE.Mesh(new THREE.BoxGeometry(HALLWAY_HALF_W*2+1, 0.4, HALLWAY2_LEN), trimMat);
+  ceiling2.position.set(0, WALL_HEIGHT+0.2, (hall2Z0+hall2Z1)/2);
+  palaceGroup.add(ceiling2);
+  const trimBand2 = new THREE.Mesh(new THREE.BoxGeometry(HALLWAY_HALF_W*2+1, 0.08, HALLWAY2_LEN), goldMat);
+  trimBand2.position.set(0, WALL_HEIGHT-0.02, (hall2Z0+hall2Z1)/2);
+  palaceGroup.add(trimBand2);
+  const col2Spacing = HALLWAY2_LEN/3;
+  for(let i=0;i<3;i++){
+    const z = hall2Z0 - col2Spacing*(i+0.5);
+    addColumn(palaceGroup, -HALLWAY_HALF_W+0.35, z, WALL_HEIGHT, wallMat, goldMat);
+    addColumn(palaceGroup, HALLWAY_HALF_W-0.35, z, WALL_HEIGHT, wallMat, goldMat);
+  }
+
+  // album room: her own space for decorated Spotify albums, single
+  // archway back toward the hallway
+  addWallRing(palaceGroup, 0, ALBUM_ROOM_CZ, ALBUM_ROOM_R, [0], wallMat);
+  addDome(palaceGroup, 0, ALBUM_ROOM_CZ, ALBUM_ROOM_R, domeMat, goldMat);
+  addArch(palaceGroup, 0, ALBUM_ROOM_CZ, ALBUM_ROOM_R, 0, ALBUM_ROOM_R*Math.sin(DOOR_HALF)+0.25, 0.14, goldMat);
+  const albumRoomFloor = new THREE.Mesh(new THREE.CircleGeometry(ALBUM_ROOM_R+0.2, 40), marbleFloorMat);
+  albumRoomFloor.rotation.x = -Math.PI/2;
+  albumRoomFloor.position.set(0, 0.012, ALBUM_ROOM_CZ);
+  albumRoomFloor.receiveShadow = true;
+  palaceGroup.add(albumRoomFloor);
+  addPearlCluster(palaceGroup, -ALBUM_ROOM_R+1.5, ALBUM_ROOM_CZ);
+  addPearlCluster(palaceGroup, ALBUM_ROOM_R-1.5, ALBUM_ROOM_CZ);
+  addFlowerCluster(palaceGroup, -ALBUM_ROOM_R+2.2, ALBUM_ROOM_CZ - 1.4);
+  addFlowerCluster(palaceGroup, ALBUM_ROOM_R-2.2, ALBUM_ROOM_CZ + 1.4);
+  addLightShaft(palaceGroup, 0, ALBUM_ROOM_CZ, WALL_HEIGHT + ALBUM_ROOM_R*0.85, 0, ALBUM_ROOM_R*0.55);
+  distributeAngles(4, [[sconceBuf, Math.PI*2-sconceBuf]])
+    .forEach(a => addWallSconce(palaceGroup, 0, ALBUM_ROOM_CZ, ALBUM_ROOM_R, a, 2.4, goldMat));
+
+  // her reading nook: a coral desk and clamshell chair off to one side
+  // (clear of the archway and the walking path), with kelp climbing the
+  // walls like vines all the way around
+  const nookX = -ALBUM_ROOM_R*0.5, nookZ = ALBUM_ROOM_CZ - ALBUM_ROOM_R*0.35;
+  addCoralDesk(palaceGroup, nookX, nookZ, goldMat);
+  addClamshellChair(palaceGroup, nookX, nookZ + 0.85);
+  distributeAngles(8, [[sconceBuf, Math.PI*2-sconceBuf]])
+    .forEach(a => addWallVine(palaceGroup, 0, ALBUM_ROOM_CZ, ALBUM_ROOM_R, a));
 
   // warm interior glow so the halls feel distinct from the open blue water
   const hallLight = new THREE.PointLight(0xfff3d9, 0.6, HALL_R*2.4, 2);
@@ -2403,6 +2547,9 @@ function buildPalace(){
   const sanctumLight = new THREE.PointLight(0xfff3d9, 0.55, SANCTUM_R*2.4, 2);
   sanctumLight.position.set(0, WALL_HEIGHT-0.6, SANCTUM_CZ);
   palaceGroup.add(sanctumLight);
+  const albumRoomLight = new THREE.PointLight(0xffe8b0, 0.55, ALBUM_ROOM_R*2.4, 2);
+  albumRoomLight.position.set(0, WALL_HEIGHT-0.6, ALBUM_ROOM_CZ);
+  palaceGroup.add(albumRoomLight);
 
   scene.add(palaceGroup);
 }
@@ -2435,10 +2582,19 @@ function resolveHallwayWalls(newPos){
     newPos.x = Math.max(-half, Math.min(half, newPos.x));
   }
 }
+function resolveHallway2Walls(newPos){
+  const z0 = SANCTUM_CZ - SANCTUM_R + 0.3, z1 = ALBUM_ROOM_CZ + ALBUM_ROOM_R - 0.3;
+  if(newPos.z < z0 && newPos.z > z1){
+    const half = HALLWAY_HALF_W - 0.4;
+    newPos.x = Math.max(-half, Math.min(half, newPos.x));
+  }
+}
 function resolvePalaceCollision(newPos, oldPos){
   resolveCircleWall(newPos, oldPos, 0, 0, HALL_R, [0, Math.PI]);
   resolveHallwayWalls(newPos);
-  resolveCircleWall(newPos, oldPos, 0, SANCTUM_CZ, SANCTUM_R, [0]);
+  resolveCircleWall(newPos, oldPos, 0, SANCTUM_CZ, SANCTUM_R, [0, Math.PI]);
+  resolveHallway2Walls(newPos);
+  resolveCircleWall(newPos, oldPos, 0, ALBUM_ROOM_CZ, ALBUM_ROOM_R, [0]);
 }
 
 function makeBubbleTexture(){
@@ -2663,12 +2819,8 @@ function buildFramePedestal(art, x, z, cx, cz, colorSeed){
   spot.position.set(0, 1.5, 0.7);
   group.add(spot);
 
-  if(art && art.caption){
-    const plaqueMat = new THREE.MeshBasicMaterial({ map: makePlaqueTexture(art.caption), transparent:true, side: THREE.DoubleSide });
-    const plaque = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 0.26), plaqueMat);
-    plaque.position.set(0, -1.24, 0.06);
-    group.add(plaque);
-  }
+  // plaques under each painting are turned off for now — captions still
+  // live on art.caption and show up in the lightbox when she peeks at one
 
   scene.add(group);
 
@@ -2727,12 +2879,35 @@ function buildWallFrame(art, x, z, faceYaw){
   spot.position.set(0, 1.1, 0.6);
   group.add(spot);
 
-  if(art && art.caption){
-    const plaqueMat = new THREE.MeshBasicMaterial({ map: makePlaqueTexture(art.caption), transparent:true, side: THREE.DoubleSide });
-    const plaque = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.22), plaqueMat);
-    plaque.position.set(0, -0.95, 0.06);
-    group.add(plaque);
+  // plaques under each painting are turned off for now — captions still
+  // live on art.caption and show up in the lightbox when she peeks at one
+
+  scene.add(group);
+  frameEntries.push({ group, decorGroup:null, art, hitMesh });
+}
+
+// a small frame mounted flush against the album room's curved wall — no
+// pedestal, sized and packed tighter than the gallery frames so decorated
+// albums build up into a dense wall collage as she adds more of them
+function buildAlbumWallFrame(art, cx, cz, radius, angle, y){
+  const x = cx + Math.sin(angle) * radius, z = cz + Math.cos(angle) * radius;
+  const group = new THREE.Group();
+  group.position.set(x, y, z);
+  group.lookAt(cx, y, cz);
+
+  const borderMat = new THREE.MeshStandardMaterial({ color: 0xc7dde2, roughness: 0.35, metalness: 0.08 });
+  group.add(new THREE.Mesh(new THREE.BoxGeometry(1.05, 1.05, 0.06), borderMat));
+
+  let hitMesh;
+  if(art){
+    const tex = artTextureLoader.load(art.img);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    hitMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.86,0.86), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+  } else {
+    hitMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.86,0.86), new THREE.MeshStandardMaterial({ color: 0xeaf8fb, side: THREE.DoubleSide, roughness: 0.3, metalness: 0.05 }));
   }
+  hitMesh.position.z = 0.04;
+  group.add(hitMesh);
 
   scene.add(group);
   frameEntries.push({ group, decorGroup:null, art, hitMesh });
@@ -2748,10 +2923,8 @@ function buildGalleryRoom(){
   const arts = hasArt ? STATE.gallery : [];
   const hallArts = hasArt ? arts.slice(0,6) : new Array(6).fill(null);
   const hallwayArts = hasArt ? arts.slice(6,8) : new Array(2).fill(null);
-  // sanctum doubles as her "album room" — once she's decorated any
-  // Spotify albums, those take over the inner room instead of overflow art
-  const hasMusic = STATE.musicGallery && STATE.musicGallery.length > 0;
-  const sanctumArts = hasMusic ? STATE.musicGallery : (hasArt ? arts.slice(8) : new Array(4).fill(null));
+  const sanctumArts = hasArt ? arts.slice(8) : new Array(4).fill(null);
+  const albumArts = STATE.musicGallery || [];
 
   // great hall: a ring of pedestals split across the two arcs between
   // the south (ocean) and north (hallway) archways
@@ -2775,14 +2948,29 @@ function buildGalleryRoom(){
   });
 
   // sanctum: a ring of pedestals around the small inner room, split
-  // across the single arc opposite its one archway
-  const sanctumAngles = distributeAngles(sanctumArts.length, [[doorBuf, Math.PI*2 - doorBuf]]);
+  // across the two arcs between its archways (back to the hallway, and
+  // on toward the album room)
+  const sanctumAngles = distributeAngles(sanctumArts.length, [
+    [doorBuf, Math.PI - doorBuf],
+    [Math.PI + doorBuf, Math.PI*2 - doorBuf]
+  ]);
   sanctumArts.forEach((art, i) => {
     const angle = sanctumAngles[i];
     const x = Math.sin(angle) * (SANCTUM_R - 1.3);
     const z = SANCTUM_CZ + Math.cos(angle) * (SANCTUM_R - 1.3);
     buildFramePedestal(art, x, z, 0, SANCTUM_CZ, i + 10);
   });
+
+  // album room: her decorated Spotify albums, packed into a dense wall
+  // collage across two rows around the room, opposite its single archway
+  const albumRowSplit = Math.ceil(albumArts.length / 2);
+  const albumUpper = albumArts.slice(0, albumRowSplit);
+  const albumLower = albumArts.slice(albumRowSplit);
+  const albumWallR = ALBUM_ROOM_R - 0.35;
+  distributeAngles(albumUpper.length, [[doorBuf, Math.PI*2 - doorBuf]])
+    .forEach((angle, i) => buildAlbumWallFrame(albumUpper[i], 0, ALBUM_ROOM_CZ, albumWallR, angle, 2.85));
+  distributeAngles(albumLower.length, [[doorBuf, Math.PI*2 - doorBuf]])
+    .forEach((angle, i) => buildAlbumWallFrame(albumLower[i], 0, ALBUM_ROOM_CZ, albumWallR, angle, 1.65));
 
   document.getElementById("galleryEmptyNote").textContent = hasArt
     ? "" : "the frames are empty for now — add her drawings from the admin page and they'll appear on their pedestals.";
@@ -3761,6 +3949,7 @@ async function setAlbumInPalace(album, show, sticker, note){
   await Store.saveContent(STATE).catch(() => {});
   if(scene) buildGalleryRoom();
   if(window.PalaceMusic) window.PalaceMusic.refreshQueue();
+  renderMusicRoomList();
 }
 
 function openDecoratePopover(album, current, onSaved){
@@ -3854,9 +4043,58 @@ async function renderMusicGrid(){
       grid.appendChild(card);
     });
     status.textContent = data.items && data.items.length ? "" : "no saved albums yet — go save a few on Spotify, then come back.";
+    renderMusicRoomList();
   }catch(e){
     status.textContent = "couldn't load your albums just now — try disconnecting and reconnecting.";
   }
+}
+
+// the order of STATE.musicGallery is the order the albums hang in the
+// palace's album room (upper row first, then lower) — this list lets her
+// rearrange that order with plain up/down/remove controls, which works
+// reliably on a phone (unlike drag-and-drop)
+function renderMusicRoomList(){
+  const section = document.getElementById("musicRoomSection");
+  const list = document.getElementById("musicRoomList");
+  if(!section || !list) return;
+  const items = STATE.musicGallery || [];
+  section.hidden = items.length === 0;
+  list.innerHTML = "";
+  items.forEach((entry, i) => {
+    const row = document.createElement("div");
+    row.className = "music-room-row";
+    row.innerHTML = `
+      ${entry.img ? `<img src="${entry.img}" alt="">` : ""}
+      <div class="mrr-title">${(entry.caption || "").replace(/</g,"&lt;")}</div>
+      <div class="mrr-btns">
+        <button type="button" data-act="up" ${i===0 ? "disabled" : ""}>↑</button>
+        <button type="button" data-act="down" ${i===items.length-1 ? "disabled" : ""}>↓</button>
+        <button type="button" class="mrr-remove" data-act="remove">✕</button>
+      </div>`;
+    row.querySelector('[data-act="up"]').addEventListener("click", () => moveMusicRoomItem(i, -1));
+    row.querySelector('[data-act="down"]').addEventListener("click", () => moveMusicRoomItem(i, 1));
+    row.querySelector('[data-act="remove"]').addEventListener("click", () => removeMusicRoomItem(i));
+    list.appendChild(row);
+  });
+}
+async function moveMusicRoomItem(i, dir){
+  const items = STATE.musicGallery;
+  const j = i + dir;
+  if(j < 0 || j >= items.length) return;
+  [items[i], items[j]] = [items[j], items[i]];
+  await Store.saveContent(STATE).catch(() => {});
+  if(scene) buildGalleryRoom();
+  renderMusicRoomList();
+  haptic(10);
+}
+async function removeMusicRoomItem(i){
+  STATE.musicGallery.splice(i, 1);
+  await Store.saveContent(STATE).catch(() => {});
+  if(scene) buildGalleryRoom();
+  PalaceMusic.refreshQueue();
+  renderMusicRoomList();
+  renderMusicGrid();
+  haptic(10);
 }
 
 const PalaceMusic = {
@@ -3901,6 +4139,8 @@ async function initMusic(){
   const status = document.getElementById("musicStatus");
   const connectBtn = document.getElementById("spotifyConnectBtn");
   const disconnectBtn = document.getElementById("spotifyDisconnectBtn");
+
+  renderMusicRoomList();
 
   if(!SPOTIFY_ENABLED){
     connectBtn.disabled = true;
@@ -3999,6 +4239,7 @@ async function initMusic(){
   // debug hook — harmless, lets the console (or a test) inspect/drive live state
   window.STATE = STATE;
   window.buildGalleryRoom = buildGalleryRoom;
+  window.renderMusicRoomList = renderMusicRoomList;
   window.triggerMeteorShower = triggerMeteorShower;
   window.__gallery = {
     get camera(){ return camera; },
