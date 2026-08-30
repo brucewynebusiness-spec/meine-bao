@@ -453,7 +453,8 @@ nav.tabs button:hover{ transform:translateY(-1px); }
 
 /* ---------- golden pickup alert banner ---------- */
 .gold-alert{
-  position:fixed; top:14px; left:50%; transform:translateX(-50%) translateY(-140%);
+  position:fixed; top:calc(env(safe-area-inset-top, 0px) + 46px); left:50%;
+  transform:translateX(-50%) translateY(-140%);
   z-index:600; max-width:92vw; display:flex; align-items:center; gap:10px;
   background:linear-gradient(180deg, #ffe58a 0%, #ffc93f 55%, #e69a1a 100%);
   color:#5a3a04; font-weight:700; font-size:0.85rem; padding:10px 14px; border-radius:999px;
@@ -796,18 +797,25 @@ function initFaceLock(){
     }
   });
 
+  let checkingInProgress = false;
   async function checkSmile(){
-    status.textContent = "checking…";
+    // a slow tap on this button was getting mistaken for "didn't
+    // register" and tapped again mid-check — guard against that, and
+    // give instant visual feedback the moment it's tapped
+    if(checkingInProgress) return;
+    checkingInProgress = true;
     captureBtn.hidden = true;
+    retryBtn.hidden = true;
+    status.textContent = "checking…";
     canvas.width = video.videoWidth; canvas.height = video.videoHeight;
     canvas.getContext("2d").drawImage(video, 0, 0);
     try{
       // first try can take a few seconds if the detector is still
       // downloading — say so instead of leaving her guessing
-      const slowNotice = setTimeout(() => { status.textContent = "still checking — first time can take a few seconds…"; }, 2500);
+      const slowNotice = setTimeout(() => { status.textContent = "still checking — first time can take a few seconds…"; }, 1500);
       await loadFaceApi();
       const result = await faceapi
-        .detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 }))
+        .detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 }))
         .withFaceExpressions();
       clearTimeout(slowNotice);
       if(!result){
@@ -834,6 +842,8 @@ function initFaceLock(){
       status.textContent = "couldn't check that just now — try again, or tap 'just let me in' below if it keeps failing.";
       retryBtn.hidden = false;
       offerSkipIfStuck();
+    }finally{
+      checkingInProgress = false;
     }
   }
   captureBtn.addEventListener("click", checkSmile);
