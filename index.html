@@ -1982,6 +1982,7 @@ document.getElementById("goldFishBtn").addEventListener("click", catchGoldenFish
    permission, a real browser notification) the moment one spawns, so
    she knows to go look instead of wandering hoping to get lucky -------- */
 function showGoldAlert(text){
+  exitImmersiveIfNeeded();
   const alertEl = document.getElementById("goldAlert");
   if(!alertEl) return;
   document.getElementById("goldAlertText").textContent = text;
@@ -2015,6 +2016,7 @@ function notifyGoldenPickup(type, isReshow){
 }
 
 function showGoldenFishReward(reward, caughtType){
+  exitImmersiveIfNeeded();
   document.getElementById("gfTitle").textContent = caughtType === "chest"
     ? "✦ golden chest opened ✦" : "✦ golden fish caught ✦";
   document.getElementById("gfType").textContent = reward.type === "date"
@@ -3508,6 +3510,15 @@ function exitImmersive(){
   requestAnimationFrame(resizeGL);
   if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
 }
+// the real browser Fullscreen API only ever paints the fullscreened
+// element's own subtree — any modal that lives outside #glViewport
+// (the painting lightbox, the golden-fish reward, the gold alert, the
+// Spotify/decorate popups) silently renders nowhere while "dive in
+// fully" is active, even though it's technically open. Call this first
+// in anything that opens one of those, so "nothing happens" isn't real.
+function exitImmersiveIfNeeded(){
+  if(document.fullscreenElement) exitImmersive();
+}
 document.getElementById("diveBtn").addEventListener("click", enterImmersive);
 document.getElementById("surfaceBtn").addEventListener("click", exitImmersive);
 document.addEventListener("fullscreenchange", () => {
@@ -3585,6 +3596,7 @@ function tick(t){
 
 let lightboxArt = null;
 function openLightbox(art){
+  exitImmersiveIfNeeded();
   lightboxArt = art;
   document.getElementById("lbImg").src = art.img;
   document.getElementById("lbCapInput").value = art.caption || "";
@@ -4163,7 +4175,12 @@ initFaceLock();
    and the tab just explains it isn't set up yet. */
 const SPOTIFY_CLIENT_ID = (window.SPOTIFY_CLIENT_ID || "").trim();
 const SPOTIFY_ENABLED = !!SPOTIFY_CLIENT_ID;
-const SPOTIFY_REDIRECT_URI = location.origin + location.pathname;
+// launched from a browser tab this is ".../meine-bao/"; launched from the
+// installed home-screen icon (manifest start_url is "./index.html") it's
+// ".../meine-bao/index.html" instead — two different strings for the same
+// site, but Spotify needs the redirect_uri to exactly match what's
+// registered in the dashboard every time. Normalize both to the same form.
+const SPOTIFY_REDIRECT_URI = location.origin + location.pathname.replace(/index\.html$/, "");
 const SPOTIFY_SCOPE = "user-library-read playlist-read-private playlist-read-collaborative";
 const SPOTIFY_VERIFIER_KEY = "obw_spotify_verifier";
 const SPOTIFY_TOKEN_KEY = "obw_spotify_tokens";
@@ -4566,6 +4583,7 @@ window.PalaceMusic = PalaceMusic;
 
 function openAlbumPicker(){
   if(!PalaceMusic.queue.length) return;
+  exitImmersiveIfNeeded();
   const pop = document.createElement("div");
   pop.className = "music-decorate-pop";
   pop.innerHTML = `
@@ -4778,6 +4796,7 @@ function renderArrangeEditor(){
 }
 
 function openArrangeModal(){
+  exitImmersiveIfNeeded();
   const pop = document.createElement("div");
   pop.className = "music-decorate-pop";
   pop.innerHTML = `
@@ -4821,6 +4840,7 @@ function openArrangeModal(){
 }
 
 function openDecorateModal(){
+  exitImmersiveIfNeeded();
   const pop = document.createElement("div");
   pop.className = "music-decorate-pop";
   pop.innerHTML = `
