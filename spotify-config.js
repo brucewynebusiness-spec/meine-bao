@@ -11,4 +11,4 @@
 //   4. API used: pick "Web API".
 //   5. Save, open the app, click "Settings", and copy the Client ID below.
 //      (There is no secret to copy — this flow never needs one.)
-window.SPOTIFY_CLIENT_ID = "";
+window.SPOTIFY_CLIENT_ID = "8afcc09104a44bce9bea4dff7030f807";
