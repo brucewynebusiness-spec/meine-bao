@@ -640,7 +640,7 @@ nav.tabs button:hover{ transform:translateY(-1px); }
       <span class="script">hi, meine bao 🤍</span>
       This whole little corner of the internet is yours. Walk through the gallery of your art,
       scratch open a few notes, sneak in a home workout for a surprise, or leave me something on the sketchpad.
-      Happy almost-anniversary — more is coming as the days go by.
+      <span id="homeMsgBody"></span>
     </div>
     <div class="quicklinks">
       <div class="qtile" data-go="gallery"><span class="emo">🖼️</span><span class="lbl">Walk the Gallery</span></div>
@@ -1174,8 +1174,54 @@ function renderCounter(){
   document.getElementById("dayCount").textContent = Math.max(days,0);
   document.getElementById("sinceLabel").textContent =
     "since " + start.toLocaleDateString(undefined,{year:"numeric",month:"long",day:"numeric"});
+  renderHomeMessage();
 }
 setInterval(renderCounter, 60000);
+
+function ordinal(n){
+  const v = n % 100;
+  if(v >= 11 && v <= 13) return n + "th";
+  switch(n % 10){
+    case 1: return n + "st";
+    case 2: return n + "nd";
+    case 3: return n + "rd";
+    default: return n + "th";
+  }
+}
+// how many days until the next anniversary (0 if today is the day)
+function daysUntilNextAnniversary(){
+  const start = new Date(STATE.startDate + "T00:00:00");
+  const now = new Date();
+  const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let next = new Date(now.getFullYear(), start.getMonth(), start.getDate());
+  if(next < today0) next.setFullYear(next.getFullYear() + 1);
+  return Math.round((next - today0) / 86400000);
+}
+// the home page's closing line — a real reflection of where things
+// stand today instead of a fixed "almost-anniversary" that goes stale
+// the moment the actual date passes
+function renderHomeMessage(){
+  const body = document.getElementById("homeMsgBody");
+  if(!body) return;
+  const start = new Date(STATE.startDate + "T00:00:00");
+  const now = new Date();
+  const days = Math.max(Math.floor((now - start) / 86400000), 0);
+  const hadAnnivThisYear = (now.getMonth() > start.getMonth()) ||
+    (now.getMonth() === start.getMonth() && now.getDate() >= start.getDate());
+  let years = now.getFullYear() - start.getFullYear();
+  if(!hadAnnivThisYear) years -= 1;
+  const untilNext = daysUntilNextAnniversary();
+
+  let line;
+  if(isAnniversaryToday() && years > 0){
+    line = `Happy ${ordinal(years)} anniversary — ${days} days of us today, and I'd pick every single one again.`;
+  } else if(untilNext > 0 && untilNext <= 21){
+    line = `${untilNext === 1 ? "One more day" : untilNext + " more days"} until our anniversary — ${days} days of us so far, more coming as the count climbs.`;
+  } else {
+    line = `${days} days of us today — and still counting.`;
+  }
+  body.textContent = line;
+}
 
 /* =========================================================================
    GALLERY — a real walkable 3D room (Three.js), cel-shaded "anime" style,
@@ -4850,6 +4896,8 @@ function openDecorateModal(){
   window.openDecorateModal = openDecorateModal;
   window.openArrangeModal = openArrangeModal;
   window.notifyGoldenPickup = notifyGoldenPickup;
+  window.renderCounter = renderCounter;
+  window.renderHomeMessage = renderHomeMessage;
   window.dismissGoldAlert = dismissGoldAlert;
   window.updateRecordPlayerProximity = updateRecordPlayerProximity;
   window.triggerMeteorShower = triggerMeteorShower;
