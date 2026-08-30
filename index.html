@@ -406,6 +406,23 @@ nav.tabs button:hover{ transform:translateY(-1px); }
   display:block; margin:10px auto 0; border:none; background:none;
   color:var(--ink-soft); text-decoration:underline; font-size:0.8rem; cursor:pointer;
 }
+.face-lock-card .save-btn, .face-lock-card .qbtn{
+  display:block; width:100%; margin-top:12px; border:none; background:var(--rose-deep);
+  color:#fff; padding:16px 20px; border-radius:999px; cursor:pointer;
+  font-weight:700; font-size:1.05rem; font-family:'Quicksand',sans-serif;
+  transition:transform .15s ease, opacity .15s ease;
+}
+.face-lock-card .qbtn{ background:none; border:2px solid var(--rose-deep); color:var(--rose-deep); }
+.face-lock-card #faceLockCapture{ padding:20px 22px; font-size:1.15rem; }
+.face-lock-card .save-btn:active{ transform:scale(0.97); }
+.face-lock-card .save-btn[disabled]{ opacity:0.75; cursor:default; transform:none; }
+.face-lock-card .save-btn.loading{ display:flex; align-items:center; justify-content:center; gap:10px; }
+.face-lock-card .save-btn.loading::before{
+  content:""; width:16px; height:16px; border-radius:50%;
+  border:2.5px solid rgba(255,255,255,0.4); border-top-color:#fff;
+  animation:faceLockSpin 0.7s linear infinite;
+}
+@keyframes faceLockSpin{ to{ transform:rotate(360deg); } }
 
 /* ---------- App splash (first load only) ---------- */
 #appSplash{
@@ -784,7 +801,10 @@ function initFaceLock(){
   }
 
   openBtn.addEventListener("click", async () => {
-    status.textContent = "asking for camera access…";
+    openBtn.disabled = true;
+    openBtn.classList.add("loading");
+    openBtn.textContent = "checking…";
+    status.textContent = "";
     try{
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
       video.srcObject = stream;
@@ -794,6 +814,10 @@ function initFaceLock(){
     }catch(e){
       status.textContent = "couldn't get the camera — check your browser's camera permission and try again.";
       offerSkipIfStuck();
+    }finally{
+      openBtn.disabled = false;
+      openBtn.classList.remove("loading");
+      openBtn.textContent = "📷 turn on the camera";
     }
   });
 
@@ -804,9 +828,11 @@ function initFaceLock(){
     // give instant visual feedback the moment it's tapped
     if(checkingInProgress) return;
     checkingInProgress = true;
-    captureBtn.hidden = true;
+    captureBtn.disabled = true;
+    captureBtn.classList.add("loading");
+    captureBtn.textContent = "checking…";
     retryBtn.hidden = true;
-    status.textContent = "checking…";
+    status.textContent = "";
     canvas.width = video.videoWidth; canvas.height = video.videoHeight;
     canvas.getContext("2d").drawImage(video, 0, 0);
     try{
@@ -820,6 +846,7 @@ function initFaceLock(){
       clearTimeout(slowNotice);
       if(!result){
         status.textContent = "couldn't find your face in frame — move in a little, get some more light, and try again.";
+        captureBtn.hidden = true;
         retryBtn.hidden = false;
         offerSkipIfStuck();
         return;
@@ -835,15 +862,20 @@ function initFaceLock(){
         setTimeout(unlockFaceLock, 700);
       } else {
         status.textContent = "hmm, not buying it — try again? 😏";
+        captureBtn.hidden = true;
         retryBtn.hidden = false;
         offerSkipIfStuck();
       }
     }catch(e){
       status.textContent = "couldn't check that just now — try again, or tap 'just let me in' below if it keeps failing.";
+      captureBtn.hidden = true;
       retryBtn.hidden = false;
       offerSkipIfStuck();
     }finally{
       checkingInProgress = false;
+      captureBtn.disabled = false;
+      captureBtn.classList.remove("loading");
+      captureBtn.textContent = "📸 take the picture";
     }
   }
   captureBtn.addEventListener("click", checkSmile);
